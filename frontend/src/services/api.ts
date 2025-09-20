@@ -21,7 +21,7 @@ class ApiService {
   constructor() {
     // Default to backend server, can be configured
     this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-    
+
     this.api = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
@@ -32,20 +32,20 @@ class ApiService {
 
     // Request interceptor to add auth token
     this.api.interceptors.request.use(
-      (config) => {
+      (config: any) => {
         const token = localStorage.getItem('auth_token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
       },
-      (error) => Promise.reject(error)
+      (error: any) => Promise.reject(error)
     );
 
     // Response interceptor for error handling
     this.api.interceptors.response.use(
-      (response) => response,
-      (error) => {
+      (response: any) => response,
+      (error: any) => {
         if (error.response?.status === 401) {
           // Token expired or invalid
           localStorage.removeItem('auth_token');
@@ -61,11 +61,11 @@ class ApiService {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
       const response: AxiosResponse<LoginResponse> = await this.api.post('/auth/login', credentials);
-      
+
       // Store token and user data
       localStorage.setItem('auth_token', response.data.access_token);
       localStorage.setItem('user_data', JSON.stringify(response.data.user));
-      
+
       return response.data;
     } catch (error) {
       console.error('Login failed:', error);
@@ -99,32 +99,52 @@ class ApiService {
   // Query Console
   async queryLogs(queryRequest: QueryRequest): Promise<QueryResponse> {
     try {
-      const response = await this.api.post('/query', queryRequest);
+      // Backend endpoint is prefixed with /api
+      const response = await this.api.post('/api/query', queryRequest);
       const backendResponse = response.data;
-      
+
       // Transform backend LogResult to frontend LogEvent format
-      const transformedResults = backendResponse.results?.map((result: any) => ({
-        id: result.event_id || `${Date.now()}-${Math.random()}`,
-        timestamp: result.timestamp,
-        source_ip: result.source_ip || 'Unknown',
-        destination_ip: result.destination_ip,
-        user: result.user,
-        event_type: result.rule_description || 'Security Event',
-        severity: result.severity || 'medium',
-        description: result.details || result.rule_description || 'Security event detected',
-        raw_log: JSON.stringify(result.raw_data || {}),
-        tags: result.rule_id ? [result.rule_id] : [],
-        status: 'new' as const,
-        location: undefined // We can add geolocation logic later
-      })) || [];
+      const transformedResults = backendResponse.results?.map((result: any) => {
+        // Best-effort extraction of source IP if not provided at top level
+        const nestedIp = result?.raw_data?.data?.win?.eventdata?.ipAddress
+          || result?.raw_data?.source?.ip
+          || result?.raw_data?.client?.ip
+          || result?.raw_data?.srcip;
+
+        // Normalize timestamp to ISO 8601 (e.g., +0000 -> +00:00) for robust parsing
+        const ts: string = result.timestamp;
+        const normalizedTimestamp = typeof ts === 'string'
+          ? ts.replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
+          : ts;
+
+        return ({
+          id: result.event_id || `${Date.now()}-${Math.random()}`,
+          timestamp: normalizedTimestamp,
+          source_ip: result.source_ip || nestedIp || 'Unknown',
+          destination_ip: result.destination_ip,
+          user: result.user,
+          event_type: result.rule_description || 'Security Event',
+          severity: result.severity || 'medium',
+          description: result.details || result.rule_description || 'Security event detected',
+          raw_log: JSON.stringify(result.raw_data || {}),
+          tags: result.rule_id ? [result.rule_id] : [],
+          status: 'new' as const,
+          location: undefined // We can add geolocation logic later
+        });
+      }) || [];
 
       return {
         summary: backendResponse.summary,
         results: transformedResults,
         query_stats: backendResponse.query_stats,
+        // Optional extras (present in backend)
+        final_dsl: backendResponse.final_dsl,
+        strategy: backendResponse.strategy,
+        repro_curl: backendResponse.repro_curl,
+        // Legacy/optional fields for compatibility
         session_id: backendResponse.session_id,
         suggestions: backendResponse.suggestions,
-        has_more_results: backendResponse.has_more_results
+        has_more_results: backendResponse.has_more_results,
       };
     } catch (error) {
       console.error('Query failed:', error);

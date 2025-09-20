@@ -67,9 +67,13 @@ export interface QueryResponse {
     indices_searched: string[];
     dsl_query: any;
   };
-  session_id: string;
+  // Optional/extended fields depending on backend response
+  session_id?: string;
   suggestions?: string[];
-  has_more_results: boolean;
+  has_more_results?: boolean;
+  final_dsl?: any;
+  strategy?: string;
+  repro_curl?: string;
 }
 
 // Dashboard Metrics Types
