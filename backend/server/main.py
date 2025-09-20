@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 
 # Import our models and services
 from models import (
@@ -23,6 +23,7 @@ from models import (
 from nlp_service import generate_dsl_query, generate_suggestions, analyze_query_intent
 from siem_connector import query_siem, get_siem_status, force_mock_mode
 from context_manager import ContextManager
+from visualization_service import create_security_report
 
 # Global variables
 app_start_time = time.time()
@@ -269,6 +270,84 @@ async def generate_report(request: ReportRequest):
             status_code=500,
             detail=f"Report generation failed: {str(e)}"
         )
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def visual_security_dashboard():
+    """
+    🎯 HACKATHON SHOWCASE: Visual Security Dashboard
+    
+    This is the WOW factor endpoint that generates stunning visualizations
+    for judges. Creates interactive charts, geo maps, and insights.
+    """
+    try:
+        print("🎨 Generating visual security dashboard...")
+        
+        # Get all recent data for comprehensive visualization
+        dashboard_query = {
+            "size": 500,  # Get lots of data for rich visuals
+            "query": {"match_all": {}},
+            "sort": [{"@timestamp": {"order": "desc"}}]
+        }
+        
+        results, _ = query_siem(dashboard_query)
+        
+        # Convert LogResult objects to dictionaries for visualization
+        events_data = []
+        for result in results:
+            if hasattr(result, 'dict'):
+                events_data.append(result.dict())
+            elif isinstance(result, dict):
+                events_data.append(result)
+        
+        # Generate visual dashboard
+        dashboard_data = create_security_report(events_data)
+        
+        # Create HTML dashboard
+        html_content = _create_dashboard_html(dashboard_data)
+        
+        print("✅ Visual dashboard generated successfully")
+        return HTMLResponse(content=html_content)
+        
+    except Exception as e:
+        print(f"❌ Error generating dashboard: {e}")
+        error_html = f"""
+        <html><body>
+        <h1>Dashboard Error</h1>
+        <p>Error generating dashboard: {str(e)}</p>
+        </body></html>
+        """
+        return HTMLResponse(content=error_html, status_code=500)
+
+
+@app.get("/dashboard/api")
+async def dashboard_api():
+    """API version of dashboard for frontend integration"""
+    try:
+        dashboard_query = {
+            "size": 500,
+            "query": {"match_all": {}},
+            "sort": [{"@timestamp": {"order": "desc"}}]
+        }
+        
+        results, query_stats = query_siem(dashboard_query)
+        
+        # Convert to dicts
+        events_data = []
+        for result in results:
+            if hasattr(result, 'dict'):
+                events_data.append(result.dict())
+            elif isinstance(result, dict):
+                events_data.append(result)
+        
+        dashboard_data = create_security_report(events_data)
+        dashboard_data["query_stats"] = query_stats.dict() if hasattr(query_stats, 'dict') else query_stats
+        
+        return dashboard_data
+        
+    except Exception as e:
+        print(f"❌ Error generating dashboard API: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/context/{session_id}")
@@ -552,6 +631,161 @@ def _generate_charts(results: List[LogResult]) -> List[Dict[str, Any]]:
         })
     
     return charts
+
+
+def _create_dashboard_html(dashboard_data: Dict[str, Any]) -> str:
+    """Create beautiful HTML dashboard for hackathon demo"""
+    summary = dashboard_data.get("summary_stats", {})
+    charts = dashboard_data.get("charts", {})
+    insights = dashboard_data.get("insights", [])
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🛡️ SIEM AI Agent - Security Dashboard</title>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <style>
+            body {{
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                color: white;
+                min-height: 100vh;
+            }}
+            .header {{
+                text-align: center;
+                margin-bottom: 30px;
+                background: rgba(255,255,255,0.1);
+                padding: 20px;
+                border-radius: 15px;
+                backdrop-filter: blur(10px);
+            }}
+            .stats-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }}
+            .stat-card {{
+                background: rgba(255,255,255,0.1);
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255,255,255,0.2);
+            }}
+            .stat-number {{
+                font-size: 2.5em;
+                font-weight: bold;
+                color: #4ECDC4;
+            }}
+            .stat-label {{
+                margin-top: 10px;
+                opacity: 0.8;
+            }}
+            .chart-container {{
+                background: rgba(255,255,255,0.1);
+                margin: 20px 0;
+                border-radius: 15px;
+                padding: 20px;
+                backdrop-filter: blur(10px);
+            }}
+            .insights-panel {{
+                background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+                padding: 20px;
+                border-radius: 15px;
+                margin-top: 30px;
+            }}
+            .insight {{
+                background: rgba(255,255,255,0.2);
+                padding: 15px;
+                margin: 10px 0;
+                border-radius: 10px;
+                border-left: 5px solid #FFEAA7;
+            }}
+            .footer {{
+                text-align: center;
+                margin-top: 40px;
+                opacity: 0.7;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🛡️ SIEM AI Agent Dashboard</h1>
+            <p>Real-time Security Analytics & Threat Intelligence</p>
+            <p><em>Powered by Gemini AI & Advanced Analytics</em></p>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{summary.get('total_events', 0)}</div>
+                <div class="stat-label">Total Events</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{summary.get('critical_alerts', 0)}</div>
+                <div class="stat-label">Critical Alerts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{summary.get('unique_source_ips', 0)}</div>
+                <div class="stat-label">Unique IPs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{summary.get('countries_involved', 0)}</div>
+                <div class="stat-label">Countries</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>📈 Security Events Timeline</h2>
+            {charts.get('timeline', '<p>Timeline chart not available</p>')}
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="chart-container">
+                <h3>🎯 Severity Distribution</h3>
+                {charts.get('severity_distribution', '<p>Chart not available</p>')}
+            </div>
+            <div class="chart-container">
+                <h3>🌐 Top Attack Sources</h3>
+                {charts.get('top_attackers', '<p>Chart not available</p>')}
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>🗺️ Global Attack Map</h2>
+            {charts.get('geo_map', '<p>Map not available</p>')}
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="chart-container">
+                <h3>⚡ Attack Types</h3>
+                {charts.get('attack_types', '<p>Chart not available</p>')}
+            </div>
+            <div class="chart-container">
+                <h3>🕐 Hourly Patterns</h3>
+                {charts.get('hourly_patterns', '<p>Chart not available</p>')}
+            </div>
+        </div>
+        
+        <div class="insights-panel">
+            <h2>🧠 AI Security Insights</h2>
+            {"".join([f'<div class="insight">{insight}</div>' for insight in insights])}
+        </div>
+        
+        <div class="footer">
+            <p>🚀 Powered by SIEM AI Agent | Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>💡 <strong>Hackathon Demo:</strong> This dashboard showcases real-time security analytics capabilities</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_content
 
 
 # --- Application Entry Point ---

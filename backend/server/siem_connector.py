@@ -34,14 +34,24 @@ class SIEMConnector:
             self._connect_to_elasticsearch()
     
     def _load_mock_data(self):
-        """Load mock SIEM data from JSON file"""
+        """Load rich mock SIEM data from JSON file"""
         try:
+            # Try rich mock data first
+            rich_data_path = os.path.join(os.path.dirname(__file__), "mock_siem_data_rich.json")
+            if os.path.exists(rich_data_path):
+                with open(rich_data_path, 'r') as f:
+                    self.mock_data = json.load(f)
+                print(f"🎯 Loaded {len(self.mock_data)} rich demo events (7 days)")
+                return
+                
+            # Fallback to original mock data
             mock_data_path = os.path.join(os.path.dirname(__file__), "mock_siem_data.json")
             with open(mock_data_path, 'r') as f:
                 self.mock_data = json.load(f)
-            print(f"📄 Loaded {len(self.mock_data)} mock security events")
+            print(f"📄 Loaded {len(self.mock_data)} basic mock security events")
+            
         except FileNotFoundError:
-            print("⚠️  Mock data file not found, using empty dataset")
+            print("⚠️  No mock data files found, using empty dataset")
             self.mock_data = []
         except json.JSONDecodeError as e:
             print(f"❌ Error parsing mock data: {e}")
