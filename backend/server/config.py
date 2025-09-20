@@ -6,7 +6,8 @@ Handles environment variables, settings validation, and configuration loading.
 
 import os
 from typing import List, Optional
-from pydantic import BaseSettings, Field, validator
+from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator
 from pathlib import Path
 
 
@@ -71,19 +72,23 @@ class Settings(BaseSettings):
     enable_api_docs: bool = Field(default=True, env="ENABLE_API_DOCS")
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        "extra": "ignore"
+    }
     
-    @validator("elasticsearch_backup_hosts", pre=True)
+    @field_validator("elasticsearch_backup_hosts", mode="before")
+    @classmethod
     def parse_backup_hosts(cls, v):
         """Parse comma-separated backup hosts"""
         if isinstance(v, str):
             return [host.strip() for host in v.split(",") if host.strip()]
         return v or []
     
-    @validator("allowed_origins", pre=True)
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
     def parse_allowed_origins(cls, v):
         """Parse comma-separated allowed origins"""
         if isinstance(v, str):
@@ -92,7 +97,8 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v or ["*"]
     
-    @validator("api_log_level")
+    @field_validator("api_log_level")
+    @classmethod
     def validate_log_level(cls, v):
         """Validate log level"""
         valid_levels = ["debug", "info", "warning", "error", "critical"]
@@ -100,21 +106,24 @@ class Settings(BaseSettings):
             raise ValueError(f"Log level must be one of: {valid_levels}")
         return v.lower()
     
-    @validator("nlp_confidence_threshold")
+    @field_validator("nlp_confidence_threshold")
+    @classmethod
     def validate_confidence_threshold(cls, v):
         """Validate NLP confidence threshold"""
         if not 0.0 <= v <= 1.0:
             raise ValueError("NLP confidence threshold must be between 0.0 and 1.0")
         return v
     
-    @validator("max_sessions")
+    @field_validator("max_sessions")
+    @classmethod
     def validate_max_sessions(cls, v):
         """Validate max sessions"""
         if v < 1:
             raise ValueError("Max sessions must be at least 1")
         return v
     
-    @validator("session_timeout_hours")
+    @field_validator("session_timeout_hours")
+    @classmethod
     def validate_session_timeout(cls, v):
         """Validate session timeout"""
         if v < 1:

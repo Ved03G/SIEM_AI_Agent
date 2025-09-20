@@ -7,11 +7,15 @@ security event data regardless of the data source.
 
 import json
 import time
+import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 from elasticsearch import Elasticsearch, ConnectionError, NotFoundError
 from models import LogResult, QueryStats, SeverityLevel
-import os
+from config import Settings
+
+# Load configuration
+settings = Settings()
 
 
 class SIEMConnector:
@@ -58,31 +62,46 @@ class SIEMConnector:
             self.mock_data = []
     
     def _connect_to_elasticsearch(self):
-        """Attempt to connect to Elasticsearch"""
-        # Default connection settings for Wazuh/Elastic SIEM
-        es_hosts = [
-            "http://localhost:9200",
-            "https://localhost:9200",
-            "http://127.0.0.1:9200"
+        """Attempt to connect to Wazuh Elasticsearch server"""
+        # Primary Wazuh server from environment
+        primary_host = settings.elasticsearch_host
+        
+        # Backup hosts for fallback
+        wazuh_es_hosts = [
+            primary_host,                      # Configured Wazuh server
+            "https://169.254.97.100:9200",     # Direct HTTPS
+            "http://169.254.97.100:9200",      # Direct HTTP
+            "https://169.254.97.100:9443",     # Alternative port
+            "http://localhost:9200",           # Local fallback
         ]
         
-        for host in es_hosts:
+        for host in wazuh_es_hosts:
             try:
-                print(f"🔌 Attempting to connect to Elasticsearch at {host}")
-                self.es_client = Elasticsearch(
-                    hosts=[host],
-                    request_timeout=5,
-                    max_retries=1,
-                    retry_on_timeout=False,
-                    # Basic auth (would be configured via environment variables)
-                    # basic_auth=('elastic', 'password'),
-                    # verify_certs=False,  # For development only
-                )
+                print(f"🔌 Attempting to connect to Wazuh Elasticsearch at {host}")
+                
+                # Configure Elasticsearch client for Wazuh server
+                es_config = {
+                    "hosts": [host],
+                    "request_timeout": settings.elasticsearch_timeout,
+                    "max_retries": settings.elasticsearch_max_retries,
+                    "retry_on_timeout": True,
+                    "verify_certs": settings.elasticsearch_verify_certs,
+                }
+                
+                # Add authentication from environment
+                if settings.elasticsearch_username and settings.elasticsearch_password:
+                    es_config["basic_auth"] = (
+                        settings.elasticsearch_username, 
+                        settings.elasticsearch_password
+                    )
+                    print(f"🔐 Using authentication: {settings.elasticsearch_username}")
+                
+                self.es_client = Elasticsearch(**es_config)
                 
                 # Test the connection
                 if self.es_client.ping():
                     self.connection_status = "connected"
-                    print(f"✅ Successfully connected to Elasticsearch at {host}")
+                    print(f"✅ Successfully connected to Wazuh Elasticsearch at {host}")
                     
                     # Get cluster info
                     cluster_info = self.es_client.info()
@@ -90,10 +109,10 @@ class SIEMConnector:
                     return
                     
             except ConnectionError as e:
-                print(f"❌ Failed to connect to {host}: {e}")
+                print(f"❌ Connection error for {host}: {type(e).__name__}: {str(e)}")
                 continue
             except Exception as e:
-                print(f"❌ Unexpected error connecting to {host}: {e}")
+                print(f"❌ Unexpected error connecting to {host}: {type(e).__name__}: {str(e)}")
                 continue
         
         # If no connection succeeded, fall back to mock data
@@ -119,24 +138,44 @@ class SIEMConnector:
             return self._query_elasticsearch(dsl_query, start_time)
     
     def _query_elasticsearch(self, dsl_query: Dict[str, Any], start_time: float) -> Tuple[List[LogResult], QueryStats]:
-        """Query real Elasticsearch instance"""
+        """Query real Wazuh Elasticsearch instance"""
         try:
-            # Standard Wazuh indices pattern
-            indices = ["wazuh-alerts-*", "wazuh-archives-*", "filebeat-*"]
+            # Wazuh specific indices patterns
+            wazuh_indices = [
+                "wazuh-alerts-4.x-*",    # Current Wazuh 4.x alerts
+                "wazuh-alerts-*",        # General Wazuh alerts
+                "wazuh-archives-*",      # Wazuh archives
+                "filebeat-*",            # Filebeat indices
+                ".wazuh-*",              # Wazuh internal indices
+                "logstash-*"             # Logstash indices if used
+            ]
+            
+            print(f"🔍 Querying Wazuh indices: {wazuh_indices}")
             
             # Try each index pattern until we find data
             response = None
             indices_searched = []
             
-            for index_pattern in indices:
+            for index_pattern in wazuh_indices:
                 try:
+                    print(f"📊 Searching index pattern: {index_pattern}")
                     response = self.es_client.search(
                         index=index_pattern,
                         **dsl_query,
                         timeout="30s"
                     )
                     indices_searched.append(index_pattern)
-                    break
+                    
+                    # Check if we got any hits
+                    total_hits = response["hits"]["total"]
+                    hit_count = total_hits["value"] if isinstance(total_hits, dict) else total_hits
+                    
+                    if hit_count > 0:
+                        print(f"✅ Found {hit_count} results in {index_pattern}")
+                        break
+                    else:
+                        print(f"📭 No results in {index_pattern}")
+                        
                 except NotFoundError:
                     continue
                 except Exception as e:

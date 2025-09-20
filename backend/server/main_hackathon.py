@@ -34,9 +34,12 @@ async def lifespan(app: FastAPI):
     
     siem_status = get_siem_status()
     if siem_status["using_mock_data"]:
-        print("🎨 Running with 400+ rich demo events")
+        print("🎨 Running with 400+ rich demo events (Mock Mode)")
+        print("💡 To connect to real Wazuh: Update credentials in .env file")
     else:
-        print("✅ Connected to live SIEM")
+        print("✅ Connected to LIVE WAZUH SERVER!")
+        print(f"🌐 Server: {siem_status.get('host', 'Unknown')}")
+        print("🔥 Using real security data for enhanced demo impact!")
     
     yield
     print("🏁 Demo complete!")
