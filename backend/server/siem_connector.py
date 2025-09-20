@@ -73,9 +73,9 @@ class SIEMConnector:
             # Fallback to single host
             all_hosts = [settings.opensearch_host]
 
-        # Ensure we have at least one host
+        # Ensure we have at least one host (prefer secure default)
         if not all_hosts:
-            all_hosts = ["http://localhost:9200"]
+            all_hosts = ["https://localhost:9200"]
 
         for host in all_hosts:
             try:
@@ -130,6 +130,17 @@ class SIEMConnector:
             wazuh_indices = settings.get_opensearch_index_patterns()
             
             print(f"🔍 Querying Wazuh indices: {wazuh_indices}")
+            # Log the DSL (truncate if long)
+            try:
+                dsl_preview = json.dumps(dsl_query, indent=2)
+            except Exception:
+                dsl_preview = str(dsl_query)
+            print("🧠 DSL body (truncated to 2,000 chars):\n" + dsl_preview[:2000])
+
+            # Ensure track_total_hits for accurate counts
+            effective_query = dict(dsl_query) if isinstance(dsl_query, dict) else {}
+            if "track_total_hits" not in effective_query:
+                effective_query["track_total_hits"] = True
             
             # Try each index pattern until we find data
             response = None
@@ -140,7 +151,7 @@ class SIEMConnector:
                     print(f"📊 Searching index pattern: {index_pattern}")
                     response = self.es_client.search(
                         index=index_pattern,
-                        body=dsl_query,
+                        body=effective_query,
                         request_timeout=30
                     )
                     indices_searched.append(index_pattern)
@@ -148,6 +159,8 @@ class SIEMConnector:
                     # Check if we got any hits
                     total_hits = response["hits"]["total"]
                     hit_count = total_hits["value"] if isinstance(total_hits, dict) else total_hits
+                    took_ms = response.get("took")
+                    print(f"   ↳ took={took_ms}ms hits={hit_count}")
                     
                     if hit_count > 0:
                         print(f"✅ Found {hit_count} results in {index_pattern}")
@@ -196,6 +209,46 @@ class SIEMConnector:
             )
             
             print(f"📊 OpenSearch query completed: {len(results)} results in {query_time_ms}ms")
+            
+            # If zero results overall, attempt a small debug sample to guide tuning
+            if total_count == 0 and wazuh_indices:
+                try:
+                    sample_index = wazuh_indices[0]
+                    print(f"🧪 Zero-hit sampler: fetching 1 doc from {sample_index} to inspect fields")
+                    sample_resp = self.es_client.search(
+                        index=sample_index,
+                        body={
+                            "size": 1,
+                            "sort": [{"@timestamp": {"order": "desc"}}],
+                            "query": {"match_all": {}}
+                        },
+                        request_timeout=15
+                    )
+                    sample_hits = sample_resp.get("hits", {}).get("hits", [])
+                    if sample_hits:
+                        sample_src = sample_hits[0].get("_source", {})
+                        print("🧪 Sample fields:")
+                        print("   rule.description:", sample_src.get("rule", {}).get("description"))
+                        print("   message:", str(sample_src.get("message", ""))[:300])
+                        print("   full_log:", str(sample_src.get("full_log", ""))[:300])
+                    else:
+                        print("🧪 No sample documents available in index pattern", sample_index)
+                except Exception as de:
+                    print("🧪 Sampler error:", de)
+
+            # Log a curl to reproduce (without credentials)
+            try:
+                hosts = settings.get_opensearch_hosts()
+                host = hosts[0] if hosts else "https://localhost:9200"
+                curl_body = json.dumps(effective_query)
+                curl_snip = (
+                    f"curl -k -u <user>:<pass> -H 'Content-Type: application/json' "
+                    f"-X POST '{host}/{wazuh_indices[0]}/_search?pretty' -d '{curl_body}'"
+                )
+                print("🧵 Repro curl (edit creds as needed):\n" + curl_snip[:2000])
+            except Exception:
+                pass
+
             return results, query_stats
             
         except ConnectionError as e:

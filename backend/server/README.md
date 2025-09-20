@@ -218,6 +218,19 @@ The current implementation includes a sophisticated placeholder for the NLP serv
 - Query refinement and filtering
 - Historical context consideration
 
+## 🔐 Corrected cURL Example (Wazuh failed logon)
+
+Use HTTPS, the `wazuh-alerts-*` index pattern, and a precise term query on `rule.id` 60122 (Windows failed logon). Limit to 5 and sort by `@timestamp` descending.
+
+```powershell
+curl.exe -k -u <user>:<pass> -H 'Content-Type: application/json' -X POST 'https://localhost:9200/wazuh-alerts-*/_search?pretty' -d '{
+  "size": 5,
+  "sort": [ { "@timestamp": { "order": "desc" } } ],
+  "track_total_hits": true,
+  "query": { "term": { "rule.id": 60122 } }
+}'
+```
+
 ### Future Integration Points
 The NLP service is designed for easy integration with actual ML models:
 

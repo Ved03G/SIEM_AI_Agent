@@ -44,12 +44,15 @@ def test_wazuh_connection():
         print("✅ Connection successful!")
         print(f"📊 OpenSearch version: {info.get('version', {}).get('number', 'unknown')}")
 
-        # Optional: run a small query
-        print("\n🔍 Running a sample query against 'wazuh-alerts-*'...")
+        # Optional: run a precise sample query (Windows failed logon rule.id=60122)
+        print("\n🔍 Running a sample failed logon query (rule.id=60122) against 'wazuh-alerts-*'...")
         test_query = {
             "size": 5,
-            "query": {"match_all": {}},
-            "sort": [{"@timestamp": {"order": "desc"}}]
+            "sort": [{"@timestamp": {"order": "desc"}}],
+            "track_total_hits": True,
+            "query": {
+                "term": {"rule.id": 60122}
+            }
         }
         resp = client.search(index="wazuh-alerts-*", body=test_query, request_timeout=30)
         total_hits = resp.get("hits", {}).get("total", {})
