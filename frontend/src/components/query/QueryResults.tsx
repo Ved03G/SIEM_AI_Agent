@@ -98,7 +98,7 @@ const QueryResults: React.FC<QueryResultsProps> = ({
               <div className="flex items-center space-x-2">
                 <Shield className="h-4 w-4 text-neon-green" />
                 <span className="text-sm text-muted-foreground">
-                  Found {totalCount || events.length} events
+                  Found {totalCount || (events ? events.length : 0)} events
                 </span>
               </div>
             </div>
@@ -152,7 +152,7 @@ const QueryResults: React.FC<QueryResultsProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {events.map((event, index) => (
+              {events && events.map((event, index) => (
                 <motion.tr
                   key={event.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -189,7 +189,7 @@ const QueryResults: React.FC<QueryResultsProps> = ({
                       <p className="text-sm text-foreground truncate">
                         {event.description}
                       </p>
-                      {event.tags.length > 0 && (
+                      {event.tags && event.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {event.tags.slice(0, 3).map((tag) => (
                             <Badge

@@ -11,7 +11,8 @@ from nlp_brain import generate_dsl_query as gemini_generate_dsl
 
 
 def generate_dsl_query(question: str, context: Optional[List[str]] = None, 
-                      query_type: QueryType = QueryType.INVESTIGATION) -> Dict[str, Any]:
+                      query_type: QueryType = QueryType.INVESTIGATION,
+                      max_results: Optional[int] = None) -> Dict[str, Any]:
     """
     Generate Elasticsearch DSL query from natural language using Gemini AI.
     Simplified for hackathon demo with fallback safety.
@@ -27,7 +28,7 @@ def generate_dsl_query(question: str, context: Optional[List[str]] = None,
             
             # Ensure required fields for demo
             if "size" not in dsl_query:
-                dsl_query["size"] = 25  # Good demo size
+                dsl_query["size"] = max_results or 25  # Use provided max_results or default
             
             if "sort" not in dsl_query:
                 dsl_query["sort"] = [{"@timestamp": {"order": "desc"}}]

@@ -65,8 +65,8 @@ const QueryConsole: React.FC = () => {
       const startTime = Date.now();
       
       const queryRequest: QueryRequest = {
-        query: query.trim(),
-        limit: 50,
+        question: query.trim(),
+        max_results: 50,
       };
 
       const response: QueryResponse = await apiService.queryLogs(queryRequest);
@@ -74,9 +74,9 @@ const QueryConsole: React.FC = () => {
       const endTime = Date.now();
       setQueryTime(endTime - startTime);
       
-      setResults(response.events);
-      setTotalCount(response.total_count);
-      setAiInsights(response.ai_insights || '');
+      setResults(response.results || []);
+      setTotalCount(response.query_stats?.total_hits || 0);
+      setAiInsights(response.summary || '');
       
       // Add to history
       if (!queryHistory.includes(query.trim())) {
@@ -245,7 +245,7 @@ const QueryConsole: React.FC = () => {
         transition={{ delay: 0.4 }}
       >
         <QueryResults
-          events={results}
+          events={results || []}
           loading={loading}
           queryTime={queryTime}
           totalCount={totalCount}
@@ -254,7 +254,7 @@ const QueryConsole: React.FC = () => {
       </motion.div>
 
       {/* Help Section */}
-      {results.length === 0 && !loading && (
+      {(!results || results.length === 0) && !loading && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

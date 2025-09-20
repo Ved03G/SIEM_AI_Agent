@@ -100,7 +100,32 @@ class ApiService {
   async queryLogs(queryRequest: QueryRequest): Promise<QueryResponse> {
     try {
       const response = await this.api.post('/query', queryRequest);
-      return response.data;
+      const backendResponse = response.data;
+      
+      // Transform backend LogResult to frontend LogEvent format
+      const transformedResults = backendResponse.results?.map((result: any) => ({
+        id: result.event_id || `${Date.now()}-${Math.random()}`,
+        timestamp: result.timestamp,
+        source_ip: result.source_ip || 'Unknown',
+        destination_ip: result.destination_ip,
+        user: result.user,
+        event_type: result.rule_description || 'Security Event',
+        severity: result.severity || 'medium',
+        description: result.details || result.rule_description || 'Security event detected',
+        raw_log: JSON.stringify(result.raw_data || {}),
+        tags: result.rule_id ? [result.rule_id] : [],
+        status: 'new' as const,
+        location: undefined // We can add geolocation logic later
+      })) || [];
+
+      return {
+        summary: backendResponse.summary,
+        results: transformedResults,
+        query_stats: backendResponse.query_stats,
+        session_id: backendResponse.session_id,
+        suggestions: backendResponse.suggestions,
+        has_more_results: backendResponse.has_more_results
+      };
     } catch (error) {
       console.error('Query failed:', error);
       throw new Error('Failed to execute query');
@@ -113,7 +138,32 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error('Failed to fetch suggestions:', error);
-      return this.getMockSuggestions();
+      return {
+        suggestions: [
+          'Show failed logins in last 24 hours',
+          'Find suspicious network traffic',
+          'List critical security alerts',
+          'Show login attempts from foreign IPs',
+          'Find malware detections this week',
+          'Show privilege escalation attempts',
+          'List blocked network connections',
+          'Find unusual user activity',
+        ],
+        categories: [
+          {
+            name: 'Authentication',
+            suggestions: ['Show failed logins', 'List successful logins', 'Find brute force attacks'],
+          },
+          {
+            name: 'Network',
+            suggestions: ['Show network anomalies', 'List blocked connections', 'Find port scans'],
+          },
+          {
+            name: 'Malware',
+            suggestions: ['Find malware detections', 'Show virus alerts', 'List quarantined files'],
+          },
+        ]
+      };
     }
   }
 

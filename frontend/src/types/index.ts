@@ -41,9 +41,12 @@ export interface LogEvent {
 
 // Query Types
 export interface QueryRequest {
-  query: string;
-  limit?: number;
-  filters?: QueryFilters;
+  question: string;
+  query_type?: 'investigation' | 'report' | 'contextual';
+  session_id?: string;
+  context?: string[];
+  time_range?: string;
+  max_results?: number;
 }
 
 export interface QueryFilters {
@@ -56,16 +59,17 @@ export interface QueryFilters {
 }
 
 export interface QueryResponse {
-  events: LogEvent[];
-  total_count: number;
-  query_time_ms: number;
-  ai_insights?: string;
-  summary: {
-    total_events: number;
-    unique_ips: number;
-    critical_alerts: number;
-    time_range: string;
+  summary: string;
+  results: LogEvent[];
+  query_stats: {
+    total_hits: number;
+    query_time_ms: number;
+    indices_searched: string[];
+    dsl_query: any;
   };
+  session_id: string;
+  suggestions?: string[];
+  has_more_results: boolean;
 }
 
 // Dashboard Metrics Types

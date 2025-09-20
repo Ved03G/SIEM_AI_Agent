@@ -48,7 +48,7 @@ const SuggestionChips: React.FC<SuggestionChipsProps> = ({
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {suggestions.map((suggestion, index) => (
+            {suggestions && suggestions.map((suggestion, index) => (
               <motion.div
                 key={suggestion}
                 initial={{ opacity: 0, scale: 0.9 }}
