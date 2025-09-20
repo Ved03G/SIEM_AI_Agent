@@ -141,3 +141,4 @@ class HealthCheckResponse(BaseModel):
     nlp_service_ready: bool = Field(..., description="Whether NLP service is ready")
     uptime_seconds: int = Field(..., description="Service uptime in seconds")
     version: str = Field(..., description="API version")
+    demo_features: Optional[Dict[str, Any]] = Field(default={}, description="Demo-specific feature status")

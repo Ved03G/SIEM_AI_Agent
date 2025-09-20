@@ -13,9 +13,14 @@ elasticsearch>=8.11.0
 # Environment management
 python-dotenv>=1.0.0
 
-# Essential dependencies only (removing heavy ML libs for now)
-# Note: torch, transformers, spacy can be added later when needed
-# For now, the NLP service uses lightweight placeholder implementation
+# Gemini AI Integration
+langchain-google-genai>=1.0.0
+langchain-core>=0.1.0
+
+# Visualization for reports (hackathon focus)
+matplotlib>=3.7.0
+plotly>=5.17.0
+kaleido>=0.2.1
 
 # Data processing and utilities
 pandas>=2.1.0
