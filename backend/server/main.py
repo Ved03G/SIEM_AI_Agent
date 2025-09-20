@@ -8,6 +8,7 @@ from nlp_brain import generate_dsl_query
 from langchain_google_genai import ChatGoogleGenerativeAI
 from models import QueryRequest, ApiResponse, LogResult, QueryStats, RawQueryRequest
 from siem_connector import SIEMConnector
+from config import Settings
 
 # Load environment variables (for GOOGLE_API_KEY, etc.)
 load_dotenv()
@@ -17,6 +18,123 @@ app = FastAPI(title="SIEM AI Agent API", version="1.0.0")
 
 # Initialize SIEM connector (will attempt connection; may use mock if not available)
 siem = SIEMConnector(use_mock_data=False)
+settings = Settings()
+
+
+def _ensure_track_total_hits(dsl: dict) -> dict:
+    try:
+        d = dict(dsl)
+        if "track_total_hits" not in d:
+            d["track_total_hits"] = True
+        return d
+    except Exception:
+        return dsl
+
+
+def _print_dsl(label: str, dsl: dict):
+    print(f"[API][{label}] DSL:")
+    try:
+        print(json.dumps(dsl, indent=2))
+    except Exception:
+        print(str(dsl))
+
+
+def _build_failed_login_candidates(base_dsl: dict) -> list[tuple[str, dict]]:
+    """Construct a set of candidate DSLs for failed-login style queries."""
+    candidates: list[tuple[str, dict]] = []
+    # 0) Original (with track_total_hits)
+    candidates.append(("original", _ensure_track_total_hits(base_dsl)))
+
+    # 1) Should-match phrases in message/description
+    candidates.append((
+        "phrases_message_description",
+        {
+            "size": base_dsl.get("size", 5),
+            "sort": base_dsl.get("sort", [{"@timestamp": {"order": "desc"}}]),
+            "track_total_hits": True,
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match_phrase": {"message": "authentication failure"}},
+                        {"match_phrase": {"message": "failed login"}},
+                        {"match_phrase": {"rule.description": "authentication failure"}},
+                        {"match_phrase": {"rule.description": "failed"}}
+                    ],
+                    "minimum_should_match": 1,
+                }
+            },
+        },
+    ))
+
+    # 2) query_string across multiple fields
+    candidates.append((
+        "query_string_multi_fields",
+        {
+            "size": base_dsl.get("size", 5),
+            "sort": base_dsl.get("sort", [{"@timestamp": {"order": "desc"}}]),
+            "track_total_hits": True,
+            "query": {
+                "query_string": {
+                    "query": '("authentication failure" OR "failed login" OR failure OR failed)',
+                    "fields": ["message", "rule.description", "full_log"],
+                    "default_operator": "OR"
+                }
+            }
+        },
+    ))
+
+    # 3) Wildcard on keyword field rule.description (if keyword)
+    candidates.append((
+        "wildcard_rule_description",
+        {
+            "size": base_dsl.get("size", 5),
+            "sort": base_dsl.get("sort", [{"@timestamp": {"order": "desc"}}]),
+            "track_total_hits": True,
+            "query": {
+                "bool": {
+                    "should": [
+                        {"wildcard": {"rule.description": "*authentication*failure*"}},
+                        {"wildcard": {"rule.description": "*failed*login*"}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            }
+        }
+    ))
+
+    return candidates
+
+
+def _agentic_execute(user_question: str, base_dsl: dict) -> tuple[list, QueryStats, dict, str]:
+    """Try a sequence of DSL variants until results are found. Returns (results, stats, final_dsl, strategy_label)."""
+    # Determine if the question is about failed logins
+    ql = (user_question or "").lower()
+    if any(k in ql for k in ["failed login", "failed logins", "authentication failure", "login failures", "failed authentication"]):
+        candidates = _build_failed_login_candidates(base_dsl)
+    else:
+        candidates = [("original", _ensure_track_total_hits(base_dsl))]
+
+    last_stats = None
+    last_results = []
+    last_label = "original"
+    last_dsl = base_dsl
+
+    for idx, (label, dsl) in enumerate(candidates, start=1):
+        print(f"[API][Strategy {idx}/{len(candidates)}] {label}")
+        _print_dsl(label, dsl)
+        try:
+            results, stats = siem.query(dsl)
+            print(f"[API][Strategy {idx}] hits={stats.total_hits} time_ms={stats.query_time_ms} indices={stats.indices_searched}")
+            if stats.total_hits and stats.total_hits > 0:
+                return results, stats, dsl, label
+            last_stats, last_results, last_label, last_dsl = stats, results, label, dsl
+        except Exception as e:
+            print(f"[API][Strategy {idx}] error: {e}")
+            last_stats, last_results, last_label, last_dsl = None, [], label, dsl
+            continue
+
+    # Nothing found; return last attempt
+    return last_results, (last_stats or QueryStats(total_hits=0, query_time_ms=0, indices_searched=[], dsl_query=last_dsl)), last_dsl, last_label
 
 
 @app.get("/api/health")
@@ -58,10 +176,10 @@ def handle_query(request: QueryRequest) -> JSONResponse:
             },
         )
 
-    # 2) Execute the query via SIEM connector (OpenSearch or mock)
+    # 2) Agentic execution: try multiple strategies until we get results
     try:
-        results, stats = siem.query(dsl_query)
-        print(f"[API] Query executed. hits={stats.total_hits} time_ms={stats.query_time_ms} indices={stats.indices_searched}")
+        results, stats, final_dsl, strategy = _agentic_execute(user_question, dsl_query)
+        print(f"[API] Final strategy={strategy} hits={stats.total_hits} time_ms={stats.query_time_ms} indices={stats.indices_searched}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"SIEM query failed: {e}")
 
@@ -88,10 +206,29 @@ def handle_query(request: QueryRequest) -> JSONResponse:
         except Exception:
             summary = f"Found {len(results_payload)} results."
 
+    # Build repro curl
+    try:
+        hosts = settings.get_opensearch_hosts()
+        host = hosts[0] if hosts else "https://localhost:9200"
+        repro_curl = (
+            "curl -k -u <user>:<pass> -H 'Content-Type: application/json' -X POST '"
+            + host
+            + "/"
+            + (stats.indices_searched[0] if stats.indices_searched else "wazuh-alerts-*")
+            + "/_search?pretty' -d '"
+            + json.dumps(final_dsl)
+            + "'"
+        )
+    except Exception:
+        repro_curl = None
+
     response = {
         "summary": summary,
         "results": results_payload,
         "query_stats": stats_payload,
+        "final_dsl": final_dsl if 'final_dsl' in locals() else dsl_query,
+        "strategy": strategy if 'strategy' in locals() else "original",
+        "repro_curl": repro_curl,
     }
     return JSONResponse(content=response)
 
