@@ -1,0 +1,380 @@
+[
+  {
+    "timestamp": "2025-09-20T21:15:00Z",
+    "event_id": "evt_001",
+    "data": {
+      "srcip": "192.168.1.101",
+      "dstip": "10.0.0.5",
+      "user": "root",
+      "protocol": "SSH",
+      "port": 22,
+      "bytes_in": 1024,
+      "bytes_out": 512,
+      "session_duration": 45,
+      "geo_location": "Unknown",
+      "user_agent": "OpenSSH_8.0"
+    },
+    "rule": {
+      "id": "5715",
+      "level": 5,
+      "description": "sshd: authentication failed.",
+      "groups": ["authentication_failed", "sshd"],
+      "mitre": {
+        "technique": "T1110",
+        "tactic": "Credential Access"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-01",
+      "ip": "10.0.0.5"
+    },
+    "decoder": {
+      "name": "sshd"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:16:12Z",
+    "event_id": "evt_002",
+    "data": {
+      "srcip": "10.0.5.23",
+      "dstip": "10.0.0.5",
+      "user": "admin",
+      "protocol": "SSH",
+      "port": 22,
+      "bytes_in": 2048,
+      "bytes_out": 1024,
+      "session_duration": 120,
+      "geo_location": "Internal Network",
+      "user_agent": "OpenSSH_8.0"
+    },
+    "rule": {
+      "id": "5715",
+      "level": 5,
+      "description": "sshd: authentication failed.",
+      "groups": ["authentication_failed", "sshd"],
+      "mitre": {
+        "technique": "T1110",
+        "tactic": "Credential Access"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-01",
+      "ip": "10.0.0.5"
+    },
+    "decoder": {
+      "name": "sshd"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:18:45Z",
+    "event_id": "evt_003",
+    "data": {
+      "srcip": "203.0.113.15",
+      "dstip": "10.0.0.8",
+      "user": "backup",
+      "protocol": "FTP",
+      "port": 21,
+      "bytes_in": 512,
+      "bytes_out": 256,
+      "session_duration": 30,
+      "geo_location": "External - US",
+      "user_agent": "FileZilla"
+    },
+    "rule": {
+      "id": "11101",
+      "level": 8,
+      "description": "Multiple failed FTP login attempts from external IP.",
+      "groups": ["authentication_failed", "ftp", "brute_force"],
+      "mitre": {
+        "technique": "T1110.001",
+        "tactic": "Credential Access"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-02",
+      "ip": "10.0.0.8"
+    },
+    "decoder": {
+      "name": "vsftpd"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:22:33Z",
+    "event_id": "evt_004",
+    "data": {
+      "srcip": "192.168.1.50",
+      "dstip": "8.8.8.8",
+      "domain": "malicious-domain.evil",
+      "protocol": "DNS",
+      "port": 53,
+      "query_type": "A",
+      "response_code": "NXDOMAIN",
+      "geo_location": "Internal Network"
+    },
+    "rule": {
+      "id": "92100",
+      "level": 10,
+      "description": "DNS query to known malicious domain detected.",
+      "groups": ["dns", "malware", "command_control"],
+      "mitre": {
+        "technique": "T1071.004",
+        "tactic": "Command and Control"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-03",
+      "ip": "192.168.1.50"
+    },
+    "decoder": {
+      "name": "dns"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:25:17Z",
+    "event_id": "evt_005",
+    "data": {
+      "srcip": "192.168.1.75",
+      "dstip": "10.0.0.10",
+      "user": "jdoe",
+      "file_path": "/etc/passwd",
+      "action": "read",
+      "process": "cat",
+      "pid": 1337,
+      "ppid": 1234,
+      "command_line": "cat /etc/passwd"
+    },
+    "rule": {
+      "id": "2902",
+      "level": 7,
+      "description": "Sensitive file access detected - /etc/passwd read.",
+      "groups": ["file_monitor", "sensitive_files"],
+      "mitre": {
+        "technique": "T1005",
+        "tactic": "Collection"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-04",
+      "ip": "10.0.0.10"
+    },
+    "decoder": {
+      "name": "auditd"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:28:09Z",
+    "event_id": "evt_006",
+    "data": {
+      "srcip": "185.220.100.240",
+      "dstip": "10.0.0.5",
+      "user": "admin",
+      "protocol": "HTTP",
+      "port": 80,
+      "url": "/admin/login.php",
+      "method": "POST",
+      "status_code": 401,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "geo_location": "TOR Exit Node - DE"
+    },
+    "rule": {
+      "id": "31103",
+      "level": 9,
+      "description": "Web authentication failed from TOR exit node.",
+      "groups": ["web", "authentication_failed", "tor"],
+      "mitre": {
+        "technique": "T1190",
+        "tactic": "Initial Access"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-05",
+      "ip": "10.0.0.5"
+    },
+    "decoder": {
+      "name": "apache"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:30:55Z",
+    "event_id": "evt_007",
+    "data": {
+      "srcip": "192.168.1.100",
+      "dstip": "94.102.61.4",
+      "protocol": "TCP",
+      "port": 443,
+      "bytes_out": 4096,
+      "bytes_in": 2048,
+      "connection_state": "ESTABLISHED",
+      "geo_location": "External - RU"
+    },
+    "rule": {
+      "id": "87104",
+      "level": 6,
+      "description": "Suspicious outbound connection to high-risk geographic location.",
+      "groups": ["network", "geo_risk", "outbound"],
+      "mitre": {
+        "technique": "T1071.001",
+        "tactic": "Command and Control"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-06",
+      "ip": "192.168.1.100"
+    },
+    "decoder": {
+      "name": "firewall"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:33:21Z",
+    "event_id": "evt_008",
+    "data": {
+      "srcip": "192.168.1.25",
+      "file_path": "/tmp/suspicious_script.sh",
+      "file_hash": "d41d8cd98f00b204e9800998ecf8427e",
+      "file_size": 2048,
+      "action": "created",
+      "user": "www-data",
+      "process": "php",
+      "command_line": "/usr/bin/php /var/www/upload.php"
+    },
+    "rule": {
+      "id": "554",
+      "level": 8,
+      "description": "Suspicious file created in temporary directory.",
+      "groups": ["file_monitor", "malware", "web_attack"],
+      "mitre": {
+        "technique": "T1105",
+        "tactic": "Command and Control"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-07",
+      "ip": "192.168.1.25"
+    },
+    "decoder": {
+      "name": "syscheck"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:35:44Z",
+    "event_id": "evt_009",
+    "data": {
+      "user": "jsmith",
+      "source_workstation": "WORKSTATION-01",
+      "logon_type": 3,
+      "logon_process": "NtLmSsp",
+      "authentication_package": "NTLM",
+      "status": "0xC000006D",
+      "substatus": "0xC0000064",
+      "failure_reason": "Unknown user name or bad password"
+    },
+    "rule": {
+      "id": "18152",
+      "level": 5,
+      "description": "Windows user logon failure - Unknown user or bad password.",
+      "groups": ["authentication_failed", "windows"],
+      "mitre": {
+        "technique": "T1110",
+        "tactic": "Credential Access"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-08",
+      "ip": "192.168.1.200"
+    },
+    "decoder": {
+      "name": "windows-security"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:38:12Z",
+    "event_id": "evt_010",
+    "data": {
+      "srcip": "10.0.1.15",
+      "process": "powershell.exe",
+      "command_line": "powershell -ExecutionPolicy Bypass -EncodedCommand UwB0AGEAcgB0AC0AUAByAG8AYwBlAHMAcwA=",
+      "user": "administrator",
+      "pid": 2468,
+      "ppid": 1024,
+      "integrity_level": "High"
+    },
+    "rule": {
+      "id": "91533",
+      "level": 9,
+      "description": "PowerShell execution with suspicious encoded command detected.",
+      "groups": ["powershell", "encoded_command", "execution"],
+      "mitre": {
+        "technique": "T1059.001",
+        "tactic": "Execution"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-09",
+      "ip": "10.0.1.15"
+    },
+    "decoder": {
+      "name": "windows-powershell"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:40:33Z",
+    "event_id": "evt_011",
+    "data": {
+      "srcip": "192.168.1.50",
+      "dstip": "198.51.100.42",
+      "protocol": "ICMP",
+      "icmp_type": 8,
+      "icmp_code": 0,
+      "packet_size": 1500,
+      "frequency": "high",
+      "geo_location": "External - CN"
+    },
+    "rule": {
+      "id": "40104",
+      "level": 7,
+      "description": "High frequency ICMP traffic to external host detected - possible data exfiltration.",
+      "groups": ["network", "icmp", "exfiltration"],
+      "mitre": {
+        "technique": "T1048.003",
+        "tactic": "Exfiltration"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-10",
+      "ip": "192.168.1.50"
+    },
+    "decoder": {
+      "name": "network-ids"
+    }
+  },
+  {
+    "timestamp": "2025-09-20T21:42:18Z",
+    "event_id": "evt_012",
+    "data": {
+      "user": "service_account",
+      "service_name": "suspicious_service",
+      "action": "service_installed",
+      "binary_path": "C:\\temp\\malware.exe",
+      "start_type": "auto",
+      "account": "LocalSystem"
+    },
+    "rule": {
+      "id": "7040",
+      "level": 8,
+      "description": "New service installed with suspicious characteristics.",
+      "groups": ["windows", "service", "persistence"],
+      "mitre": {
+        "technique": "T1543.003",
+        "tactic": "Persistence"
+      }
+    },
+    "agent": {
+      "name": "wazuh-agent-11",
+      "ip": "192.168.1.150"
+    },
+    "decoder": {
+      "name": "windows-system"
+    }
+  }
+]
