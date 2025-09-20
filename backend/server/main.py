@@ -2,6 +2,7 @@ import os
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from nlp_brain import generate_dsl_query
@@ -15,6 +16,21 @@ load_dotenv()
 
 # FastAPI app
 app = FastAPI(title="SIEM AI Agent API", version="1.0.0")
+
+# CORS configuration
+FRONTEND_ORIGINS = [
+    os.getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=FRONTEND_ORIGINS if FRONTEND_ORIGINS else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],  # Includes OPTIONS for preflight
+    allow_headers=["*"],  # Allow Authorization, Content-Type, etc.
+    expose_headers=["*"],
+)
 
 # Initialize SIEM connector (will attempt connection; may use mock if not available)
 siem = SIEMConnector(use_mock_data=False)
