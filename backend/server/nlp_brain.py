@@ -24,7 +24,15 @@ Here is the relevant index schema. Use these exact field names:
 - data.srcip: The source IP address of the event traffic.
 - data.dstip: The destination IP address of the event traffic.
 
-Here are high-quality examples of how to translate questions. Prioritize using rule.id when a specific event type is requested.
+Guidance for constructing DSL:
+- Always set "track_total_hits": true for accurate counts.
+- Unless the user specifies otherwise, sort by {{"@timestamp": {{"order": "desc"}}}}.
+- If the user asks for "last N", set "size" to N; otherwise omit size (or leave to defaults) unless clearly implied.
+- Prefer precise filters: use term queries on keyword-like fields and specific rule IDs when clearly identifiable (for example, some Windows failed logon events map to rule.id 60122). Do not hardcode rule IDs unless the user intent explicitly implies a known mapping.
+- For date ranges like "between 2025-09-10 and 2025-09-20", use a range on @timestamp with "gte" and "lte" in ISO format (Z timezone), e.g., "2025-09-10T00:00:00Z" to "2025-09-20T23:59:59Z".
+- Avoid inefficient wildcards; use match_phrase or terms/term appropriately.
+
+Here are high-quality examples. Prioritize using rule.id when a specific event type is requested.
 
 Human: what were the last 5 failed logins?
 AI:
@@ -34,6 +42,33 @@ AI:
   "track_total_hits": true,
   "query": {{
     "term": {{ "rule.id": 60122 }}
+  }}
+}}
+Human: show me the last 5 successful logins
+AI:
+{{
+  "size": 5,
+  "sort": [{{ "@timestamp": {{ "order": "desc" }} }}],
+  "track_total_hits": true,
+  "query": {{
+    "term": {{
+      "rule.id": "60106"
+    }}
+  }}
+}}
+
+Human: show failed logins between 2025-09-10 and 2025-09-20
+AI:
+{{
+  "sort": [{{ "@timestamp": {{ "order": "desc" }} }}],
+  "track_total_hits": true,
+  "query": {{
+    "bool": {{
+      "must": [
+        {{ "term": {{ "rule.id": 60122 }} }},
+        {{ "range": {{ "@timestamp": {{ "gte": "2025-09-10T00:00:00Z", "lte": "2025-09-20T23:59:59Z" }} }} }}
+      ]
+    }}
   }}
 }}
 
@@ -83,6 +118,21 @@ AI:
   }}
 }}
 
+Human: show events for malicious IP 10.0.2.15 in the last 24 hours
+AI:
+{{
+  "sort": [{{ "@timestamp": {{ "order": "desc" }} }}],
+  "track_total_hits": true,
+  "query": {{
+    "bool": {{
+      "must": [
+        {{ "term": {{ "data.srcip": "10.0.2.15" }} }},
+        {{ "range": {{ "@timestamp": {{ "gte": "now-24h" }} }} }}
+      ]
+    }}
+  }}
+}}
+
 Human: {user_question}
 AI:
 """
@@ -94,23 +144,15 @@ def generate_dsl_query(question: str) -> dict:
   Also logs the filled prompt, raw model response, and parsed DSL for observability.
   """
   api_key = os.getenv("GOOGLE_API_KEY", "").strip()
-  # Hardcoded presets for common queries (bypass LLM)
-  ql = (question or "").lower()
-  if (
-      "authentication failure" in ql or
-      "failed login" in ql or
-      "failed logins" in ql or
-      os.getenv("NLP_FORCE_PRESET", "").strip().lower() in ("1", "true", "yes")
-  ):
+  # Optional: Hardcoded preset only when explicitly forced (for testing)
+  if os.getenv("NLP_FORCE_PRESET", "").strip().lower() in ("1", "true", "yes"):
     preset = {
       "size": 5,
       "sort": [{"@timestamp": {"order": "desc"}}],
       "track_total_hits": True,
-      "query": {
-        "term": {"rule.id": 60122}
-      }
+      "query": {"term": {"rule.id": 60122}}
     }
-    print("[NLP] Using hardcoded preset DSL for authentication failure / failed login")
+    print("[NLP] Using FORCED preset DSL (override enabled)")
     try:
       print("[NLP] Preset DSL:\n" + json.dumps(preset, indent=2))
     except Exception:
@@ -119,6 +161,7 @@ def generate_dsl_query(question: str) -> dict:
 
   if not api_key:
     # Avoid calling the API without a valid key
+    print("[NLP] No GOOGLE_API_KEY set; cannot call model. Returning empty DSL.")
     return {}
 
   try:
@@ -148,6 +191,7 @@ def generate_dsl_query(question: str) -> dict:
     print("[NLP] Raw model response (truncated to 2,000 chars):\n" + raw[:2000])
     try:
       parsed = json.loads(raw)
+      parsed = _postprocess_dsl(parsed, question)
       try:
         print("[NLP] Parsed DSL:\n" + json.dumps(parsed, indent=2)[:2000])
       except Exception:
@@ -160,6 +204,7 @@ def generate_dsl_query(question: str) -> dict:
       if start != -1 and end != -1 and end > start:
         try:
           parsed = json.loads(raw[start : end + 1])
+          parsed = _postprocess_dsl(parsed, question)
           try:
             print("[NLP] Parsed DSL (from extracted JSON):\n" + json.dumps(parsed, indent=2)[:2000])
           except Exception:
@@ -170,7 +215,90 @@ def generate_dsl_query(question: str) -> dict:
       return {}
   except Exception as e:
     print(f"[NLP] Unexpected error: {e}")
-    return {}
+    return _fallback_from_question(question)
+
+
+def _postprocess_dsl(dsl: dict, question: str) -> dict:
+  """Enforce small best-practice defaults in the returned DSL.
+  - Ensure track_total_hits: true
+  - Ensure sort by @timestamp desc if not provided
+  - If user asked for "last N" and no size provided, set size=N; otherwise leave as-is
+  """
+  try:
+    d = dict(dsl) if isinstance(dsl, dict) else {}
+    # track_total_hits
+    if "track_total_hits" not in d:
+      d["track_total_hits"] = True
+    # sort default
+    if "sort" not in d or not d.get("sort"):
+      d["sort"] = [{"@timestamp": {"order": "desc"}}]
+    # size from "last N"
+    if "size" not in d and isinstance(question, str):
+      import re
+      m = re.search(r"last\s+(\d+)", question.lower())
+      if m:
+        try:
+          d["size"] = int(m.group(1))
+        except Exception:
+          pass
+    return d
+  except Exception:
+    return dsl
+
+
+def _fallback_from_question(question: str) -> dict:
+  """Generate a minimal but valid DSL when the LLM fails. Best-effort.
+  Supports patterns: "last N", date range "between A and B", keywords like failed login, and IP filters.
+  """
+  try:
+    import re
+    q = (question or "").lower()
+    dsl: dict = {
+      "track_total_hits": True,
+      "sort": [{"@timestamp": {"order": "desc"}}],
+      "query": {"match_all": {}}
+    }
+
+    # last N
+    m = re.search(r"last\s+(\d+)", q)
+    if m:
+      try:
+        dsl["size"] = int(m.group(1))
+      except Exception:
+        pass
+
+    # between YYYY-MM-DD and YYYY-MM-DD
+    m = re.search(r"between\s+(\d{4}-\d{2}-\d{2})\s+and\s+(\d{4}-\d{2}-\d{2})", q)
+    if m:
+      start, end = m.group(1), m.group(2)
+      time_filter = {"range": {"@timestamp": {"gte": f"{start}T00:00:00Z", "lte": f"{end}T23:59:59Z"}}}
+    else:
+      time_filter = None
+
+    # IP address
+    m = re.search(r"\b(\d{1,3}(?:\.\d{1,3}){3})\b", q)
+    ip_term = {"term": {"data.srcip": m.group(1)}} if m else None
+
+    # failed login keyword
+    if "failed login" in q or "authentication failure" in q:
+      failed_clause = {"term": {"rule.id": 60122}}
+    else:
+      failed_clause = None
+
+    clauses = []
+    if failed_clause:
+      clauses.append(failed_clause)
+    if ip_term:
+      clauses.append(ip_term)
+    if time_filter:
+      clauses.append(time_filter)
+
+    if clauses:
+      dsl["query"] = {"bool": {"must": clauses}}
+
+    return dsl
+  except Exception:
+    return {"track_total_hits": True, "sort": [{"@timestamp": {"order": "desc"}}], "query": {"match_all": {}}}
 
 
 # This block allows you to test the file directly
