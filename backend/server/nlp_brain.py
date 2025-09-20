@@ -10,7 +10,7 @@ load_dotenv()
 # This is the master prompt. It teaches the AI how to behave and gives it examples.
 # The quality of your entire project depends on the quality of this prompt.
 MASTER_PROMPT_TEMPLATE = """
-You are an expert cybersecurity analyst who translates human language into precise Elasticsearch DSL queries.
+You are an expert cybersecurity analyst who translates human language into precise OpenSearch DSL queries.
 Your goal is to construct a JSON query to search the 'wazuh-alerts-*' index.
 You must only respond with the JSON query object and nothing else. Do not add any extra text or explanations.
 
@@ -49,12 +49,18 @@ AI:
   "query": {{
     "bool": {{
       "must": [
-        {{ "term": {{ "rule.description": "failure" }} }},
         {{ "term": {{ "rule.groups": "authentication" }} }}
-      ]
+      ],
+      "should": [
+        {{ "match_phrase": {{ "message": "failed" }} }},
+        {{ "match_phrase": {{ "message": "failure" }} }},
+        {{ "match_phrase": {{ "rule.description": "failed" }} }},
+        {{ "match_phrase": {{ "rule.description": "failure" }} }}
+      ],
+      "minimum_should_match": 1
     }}
   }},
-  "sort": [{{ "@timestamp": "desc" }}]
+  "sort": [{{ "@timestamp": {{ "order": "desc" }} }}]
 }}
 
 Human: Show me all alerts from the agent named 'prod-web-01' yesterday.
@@ -104,8 +110,9 @@ AI:
 
 def generate_dsl_query(question: str) -> dict:
   """
-  Takes a user's natural language question and returns a valid Elasticsearch DSL query as a dictionary.
+  Takes a user's natural language question and returns a valid OpenSearch DSL query as a dictionary.
   Returns an empty dictionary if the generation fails or the output is not valid JSON.
+  Also logs the filled prompt, raw model response, and parsed DSL for observability.
   """
   api_key = os.getenv("GOOGLE_API_KEY", "").strip()
   if not api_key:
@@ -123,6 +130,11 @@ def generate_dsl_query(question: str) -> dict:
     # Create the prompt from the template
     prompt = PromptTemplate(template=MASTER_PROMPT_TEMPLATE, input_variables=["user_question"]) 
 
+    # Log question and the filled prompt for transparency
+    print("[NLP] Received question:", question)
+    filled_prompt = prompt.format(user_question=question)
+    print("[NLP] Filled prompt (truncated to 2,000 chars):\n" + filled_prompt[:2000])
+
     # Create a simple chain
     chain = prompt | llm
 
@@ -131,20 +143,31 @@ def generate_dsl_query(question: str) -> dict:
 
     # The response.content should be a JSON string; parse with a safe fallback
     raw = (getattr(response, "content", "") or "").strip()
+    print("[NLP] Raw model response (truncated to 2,000 chars):\n" + raw[:2000])
     try:
-      return json.loads(raw)
+      parsed = json.loads(raw)
+      try:
+        print("[NLP] Parsed DSL:\n" + json.dumps(parsed, indent=2)[:2000])
+      except Exception:
+        pass
+      return parsed
     except Exception:
       # Try to extract the first JSON object from any surrounding text
       start = raw.find("{")
       end = raw.rfind("}")
       if start != -1 and end != -1 and end > start:
         try:
-          return json.loads(raw[start : end + 1])
+          parsed = json.loads(raw[start : end + 1])
+          try:
+            print("[NLP] Parsed DSL (from extracted JSON):\n" + json.dumps(parsed, indent=2)[:2000])
+          except Exception:
+            pass
+          return parsed
         except Exception:
           return {}
       return {}
   except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+    print(f"[NLP] Unexpected error: {e}")
     return {}
 
 

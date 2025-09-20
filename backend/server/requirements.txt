@@ -7,8 +7,8 @@ python-multipart>=0.0.6
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
-# Elasticsearch connectivity
-elasticsearch>=8.11.0
+# OpenSearch connectivity
+opensearch-py>=2.4.0
 
 # Environment management
 python-dotenv>=1.0.0

@@ -39,8 +39,8 @@ def main():
     
     # Test common ports
     ports_to_test = [
-        (9200, "Elasticsearch"),
-        (9443, "Alternative Elasticsearch"),
+        (9200, "OpenSearch"),
+        (9443, "Alternative OpenSearch"),
         (443, "HTTPS"),
         (80, "HTTP"),
         (22, "SSH"),

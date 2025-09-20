@@ -23,14 +23,19 @@ class Settings(BaseSettings):
     api_reload: bool = Field(default=False, env="API_RELOAD")
     api_log_level: str = Field(default="info", env="API_LOG_LEVEL")
     
-    # === Elasticsearch Configuration ===
-    elasticsearch_host: str = Field(default="http://localhost:9200", env="ELASTICSEARCH_HOST")
-    elasticsearch_username: Optional[str] = Field(default=None, env="ELASTICSEARCH_USERNAME")
-    elasticsearch_password: Optional[str] = Field(default=None, env="ELASTICSEARCH_PASSWORD")
-    elasticsearch_verify_certs: bool = Field(default=False, env="ELASTICSEARCH_VERIFY_CERTS")
-    elasticsearch_timeout: int = Field(default=30, env="ELASTICSEARCH_TIMEOUT")
-    elasticsearch_max_retries: int = Field(default=3, env="ELASTICSEARCH_MAX_RETRIES")
-    elasticsearch_backup_hosts: List[str] = Field(default=[], env="ELASTICSEARCH_BACKUP_HOSTS")
+    # === OpenSearch Configuration ===
+    opensearch_host: str = Field(default="https://localhost:9200", env="OPENSEARCH_HOST")
+    opensearch_username: Optional[str] = Field(default=None, env="OPENSEARCH_USERNAME")
+    opensearch_password: Optional[str] = Field(default=None, env="OPENSEARCH_PASSWORD")
+    opensearch_verify_certs: bool = Field(default=False, env="OPENSEARCH_VERIFY_CERTS")
+    opensearch_timeout: int = Field(default=30, env="OPENSEARCH_TIMEOUT")
+    opensearch_max_retries: int = Field(default=3, env="OPENSEARCH_MAX_RETRIES")
+    opensearch_backup_hosts: str = Field(default="", env="OPENSEARCH_BACKUP_HOSTS")
+    # Comma-separated index patterns to search, configurable via env
+    opensearch_index_patterns: str = Field(
+        default="wazuh-alerts-4.x-*,wazuh-alerts-*,wazuh-archives-*,filebeat-*,.wazuh-*,logstash-*",
+        env="OPENSEARCH_INDEX_PATTERNS",
+    )
     
     # === SIEM Data Configuration ===
     force_mock_data: bool = Field(default=False, env="FORCE_MOCK_DATA")
@@ -79,13 +84,15 @@ class Settings(BaseSettings):
         "extra": "ignore"
     }
     
-    @field_validator("elasticsearch_backup_hosts", mode="before")
+    @field_validator("opensearch_backup_hosts", mode="before")
     @classmethod
     def parse_backup_hosts(cls, v):
         """Parse comma-separated backup hosts"""
         if isinstance(v, str):
-            return [host.strip() for host in v.split(",") if host.strip()]
-        return v or []
+            if not v.strip():  # Handle empty strings
+                return ""
+            return v.strip()
+        return v or ""
     
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -130,17 +137,32 @@ class Settings(BaseSettings):
             raise ValueError("Session timeout must be at least 1 hour")
         return v
     
-    def get_elasticsearch_hosts(self) -> List[str]:
-        """Get all Elasticsearch hosts (primary + backups)"""
-        hosts = [self.elasticsearch_host]
-        hosts.extend(self.elasticsearch_backup_hosts)
+    def get_opensearch_hosts(self) -> List[str]:
+        """Get all OpenSearch hosts (primary + backups)"""
+        hosts = [self.opensearch_host]
+        if self.opensearch_backup_hosts:
+            backup_hosts = [host.strip() for host in self.opensearch_backup_hosts.split(",") if host.strip()]
+            hosts.extend(backup_hosts)
         return hosts
     
-    def get_elasticsearch_auth(self) -> Optional[tuple]:
-        """Get Elasticsearch authentication tuple"""
-        if self.elasticsearch_username and self.elasticsearch_password:
-            return (self.elasticsearch_username, self.elasticsearch_password)
+    def get_opensearch_auth(self) -> Optional[tuple]:
+        """Get OpenSearch authentication tuple"""
+        if self.opensearch_username and self.opensearch_password:
+            return (self.opensearch_username, self.opensearch_password)
         return None
+
+    def get_opensearch_index_patterns(self) -> List[str]:
+        """Get list of index patterns to search"""
+        patterns = [p.strip() for p in (self.opensearch_index_patterns or "").split(",") if p.strip()]
+        # Fallback to a safe default if misconfigured
+        return patterns or [
+            "wazuh-alerts-4.x-*",
+            "wazuh-alerts-*",
+            "wazuh-archives-*",
+            "filebeat-*",
+            ".wazuh-*",
+            "logstash-*",
+        ]
     
     def is_production(self) -> bool:
         """Check if running in production mode"""
@@ -189,7 +211,7 @@ class TestingSettings(Settings):
     force_mock_data: bool = True
     max_sessions: int = 10
     session_timeout_hours: int = 1
-    elasticsearch_timeout: int = 5
+    opensearch_timeout: int = 5
     enable_api_docs: bool = False
     log_level: str = "WARNING"
 
@@ -233,14 +255,14 @@ def validate_configuration(settings: Settings) -> List[str]:
         if "*" in settings.allowed_origins:
             warnings.append("CORS is configured to allow all origins in production")
         
-        if not settings.elasticsearch_username or not settings.elasticsearch_password:
-            warnings.append("Elasticsearch authentication not configured for production")
+        if not settings.opensearch_username or not settings.opensearch_password:
+            warnings.append("OpenSearch authentication not configured for production")
         
         if not settings.enable_file_logging:
             warnings.append("File logging disabled in production")
         
-        if settings.elasticsearch_verify_certs is False:
-            warnings.append("Elasticsearch certificate verification disabled in production")
+        if settings.opensearch_verify_certs is False:
+            warnings.append("OpenSearch certificate verification disabled in production")
     
     # Check for development conveniences in production
     if settings.is_production() and settings.force_mock_data:
@@ -278,7 +300,7 @@ def print_config_summary():
     print(f"   API: {settings.api_host}:{settings.api_port}")
     print(f"   Debug Mode: {settings.debug_mode}")
     print(f"   Mock Data: {settings.force_mock_data}")
-    print(f"   Elasticsearch: {settings.elasticsearch_host}")
+    print(f"   OpenSearch: {settings.opensearch_host}")
     print(f"   Max Sessions: {settings.max_sessions}")
     print(f"   Log Level: {settings.log_level}")
     if config_warnings:
@@ -292,6 +314,6 @@ if __name__ == "__main__":
     
     # Example of how to access settings
     print("Example settings access:")
-    print(f"Elasticsearch hosts: {settings.get_elasticsearch_hosts()}")
+    print(f"OpenSearch hosts: {settings.get_opensearch_hosts()}")
     print(f"Is production: {settings.is_production()}")
     print(f"Log config: {settings.get_log_config()}")

@@ -77,6 +77,11 @@ class ApiResponse(BaseModel):
     has_more_results: bool = Field(default=False, description="Whether there are more results available")
 
 
+class RawQueryRequest(BaseModel):
+    """Request model for directly submitting an OpenSearch DSL query"""
+    dsl: Dict[str, Any] = Field(..., description="Raw OpenSearch DSL query to execute")
+
+
 class ReportRequest(BaseModel):
     """Request model for generating automated security reports"""
     report_type: str = Field(..., description="Type of report to generate (e.g., 'malware_summary', 'login_analysis')")

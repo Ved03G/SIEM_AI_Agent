@@ -10,7 +10,7 @@ load_dotenv()
 # This is the master prompt. It teaches the AI how to behave and gives it examples.
 # The quality of your entire project depends on the quality of this prompt.
 MASTER_PROMPT_TEMPLATE = """
-You are an expert cybersecurity analyst who translates human language into precise Elasticsearch DSL queries.
+You are an expert cybersecurity analyst who translates human language into precise OpenSearch DSL queries.
 Your goal is to construct a JSON query to search the 'wazuh-alerts-*' index.
 You must only respond with the JSON query object and nothing else. Do not add any extra text or explanations.
 
@@ -104,7 +104,7 @@ AI:
 
 def generate_dsl_query(question: str) -> dict:
   """
-  Takes a user's natural language question and returns a valid Elasticsearch DSL query as a dictionary.
+  Takes a user's natural language question and returns a valid OpenSearch DSL query as a dictionary.
   Returns an empty dictionary if the generation fails or the output is not valid JSON.
   """
   api_key = os.getenv("GOOGLE_API_KEY", "").strip()
