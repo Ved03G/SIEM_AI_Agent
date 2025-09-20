@@ -86,7 +86,7 @@ def main():
         print("✅ Basic connectivity: SUCCESS")
         print("💡 The server might be blocking the specific ports (9200, 9443)")
         print("💡 Check firewall rules on the Wazuh server")
-        print("💡 Verify Elasticsearch is running and bound to the correct interface")
+        print("💡 Verify OpenSearch is running and bound to the correct interface")
     else:
         print("❌ Basic connectivity: FAILED")
         print("💡 Possible issues:")

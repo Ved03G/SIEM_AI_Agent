@@ -1,6 +1,6 @@
 # SIEM AI Agent — NLP Brain
 
-This module turns natural language questions into Elasticsearch DSL queries for the `wazuh-alerts-*` index using Google Gemini via LangChain.
+This module turns natural language questions into OpenSearch DSL queries for the `wazuh-alerts-*` index using Google Gemini via LangChain.
 
 ## Setup
 

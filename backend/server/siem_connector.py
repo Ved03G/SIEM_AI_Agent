@@ -1,6 +1,6 @@
 # server/siem_connector.py
 """
-SIEM Connector module for handling connections to Elasticsearch instances
+SIEM Connector module for handling connections to OpenSearch instances
 and mock data. This module provides a unified interface for querying
 security event data regardless of the data source.
 """
@@ -10,9 +10,10 @@ import time
 import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
-from elasticsearch import Elasticsearch, ConnectionError, NotFoundError
+from opensearchpy import OpenSearch, ConnectionError, NotFoundError
 from models import LogResult, QueryStats, SeverityLevel
 from config import Settings
+from urllib.parse import urlparse
 
 # Load configuration
 settings = Settings()
@@ -20,7 +21,7 @@ settings = Settings()
 
 class SIEMConnector:
     """
-    Handles connections to Elasticsearch SIEM instances with fallback to mock data.
+    Handles connections to OpenSearch SIEM instances with fallback to mock data.
     Provides a unified interface for querying security events.
     """
     
@@ -33,9 +34,9 @@ class SIEMConnector:
         # Load mock data
         self._load_mock_data()
         
-        # Try to connect to Elasticsearch if not using mock data
+    # Try to connect to OpenSearch if not using mock data
         if not use_mock_data:
-            self._connect_to_elasticsearch()
+            self._connect_to_opensearch()
     
     def _load_mock_data(self):
         """Load rich mock SIEM data from JSON file"""
@@ -61,51 +62,50 @@ class SIEMConnector:
             print(f"❌ Error parsing mock data: {e}")
             self.mock_data = []
     
-    def _connect_to_elasticsearch(self):
-        """Attempt to connect to Wazuh Elasticsearch server"""
-        # Primary Wazuh server from environment
-        primary_host = settings.elasticsearch_host
-        
-        # Backup hosts for fallback
-        wazuh_es_hosts = [
-            primary_host,                      # Configured Wazuh server
-            "https://169.254.97.100:9200",     # Direct HTTPS
-            "http://169.254.97.100:9200",      # Direct HTTP
-            "https://169.254.97.100:9443",     # Alternative port
-            "http://localhost:9200",           # Local fallback
-        ]
-        
-        for host in wazuh_es_hosts:
+    def _connect_to_opensearch(self):
+        """Attempt to connect to Wazuh OpenSearch server"""
+        # Primary + backup hosts from configuration
+        all_hosts = []
+        try:
+            # Prefer using helper if available
+            all_hosts = settings.get_opensearch_hosts()
+        except Exception:
+            # Fallback to single host
+            all_hosts = [settings.opensearch_host]
+
+        # Ensure we have at least one host
+        if not all_hosts:
+            all_hosts = ["http://localhost:9200"]
+
+        for host in all_hosts:
             try:
-                print(f"🔌 Attempting to connect to Wazuh Elasticsearch at {host}")
+                print(f"🔌 Attempting to connect to Wazuh OpenSearch at {host}")
                 
-                # Configure Elasticsearch client for Wazuh server
+                # Configure OpenSearch client for Wazuh server (simpe-test pattern)
                 es_config = {
                     "hosts": [host],
-                    "request_timeout": settings.elasticsearch_timeout,
-                    "max_retries": settings.elasticsearch_max_retries,
-                    "retry_on_timeout": True,
-                    "verify_certs": settings.elasticsearch_verify_certs,
+                    "verify_certs": settings.opensearch_verify_certs,
+                    "ssl_show_warn": False,
                 }
                 
                 # Add authentication from environment
-                if settings.elasticsearch_username and settings.elasticsearch_password:
-                    es_config["basic_auth"] = (
-                        settings.elasticsearch_username, 
-                        settings.elasticsearch_password
+                if settings.opensearch_username and settings.opensearch_password:
+                    es_config["http_auth"] = (
+                        settings.opensearch_username,
+                        settings.opensearch_password
                     )
-                    print(f"🔐 Using authentication: {settings.elasticsearch_username}")
+                    print(f"🔐 Using authentication: {settings.opensearch_username}")
                 
-                self.es_client = Elasticsearch(**es_config)
+                self.es_client = OpenSearch(**es_config)
                 
                 # Test the connection
                 if self.es_client.ping():
                     self.connection_status = "connected"
-                    print(f"✅ Successfully connected to Wazuh Elasticsearch at {host}")
+                    print(f"✅ Successfully connected to Wazuh OpenSearch at {host}")
                     
                     # Get cluster info
                     cluster_info = self.es_client.info()
-                    print(f"📊 Elasticsearch version: {cluster_info.get('version', {}).get('number', 'unknown')}")
+                    print(f"📊 OpenSearch version: {cluster_info.get('version', {}).get('number', 'unknown')}")
                     return
                     
             except ConnectionError as e:
@@ -116,39 +116,18 @@ class SIEMConnector:
                 continue
         
         # If no connection succeeded, fall back to mock data
-        print("🔄 No Elasticsearch connection available, falling back to mock data")
+        print("🔄 No OpenSearch connection available, falling back to mock data")
         self.use_mock_data = True
         self.connection_status = "mock_mode"
     
-    def query_siem(self, dsl_query: Dict[str, Any]) -> Tuple[List[LogResult], QueryStats]:
-        """
-        Execute a query against the SIEM and return formatted results.
-        
-        Args:
-            dsl_query: Elasticsearch DSL query dictionary
-            
-        Returns:
-            Tuple of (results, query_stats)
-        """
-        start_time = time.time()
-        
-        if self.use_mock_data or not self.es_client:
-            return self._query_mock_data(dsl_query, start_time)
-        else:
-            return self._query_elasticsearch(dsl_query, start_time)
+    # Removed legacy standalone query_siem function in favor of SIEMConnector.query
+
     
-    def _query_elasticsearch(self, dsl_query: Dict[str, Any], start_time: float) -> Tuple[List[LogResult], QueryStats]:
-        """Query real Wazuh Elasticsearch instance"""
+    def _query_opensearch(self, dsl_query: Dict[str, Any], start_time: float) -> Tuple[List[LogResult], QueryStats]:
+        """Query real Wazuh OpenSearch instance"""
         try:
-            # Wazuh specific indices patterns
-            wazuh_indices = [
-                "wazuh-alerts-4.x-*",    # Current Wazuh 4.x alerts
-                "wazuh-alerts-*",        # General Wazuh alerts
-                "wazuh-archives-*",      # Wazuh archives
-                "filebeat-*",            # Filebeat indices
-                ".wazuh-*",              # Wazuh internal indices
-                "logstash-*"             # Logstash indices if used
-            ]
+            # Use configured index patterns (defaults include common Wazuh patterns)
+            wazuh_indices = settings.get_opensearch_index_patterns()
             
             print(f"🔍 Querying Wazuh indices: {wazuh_indices}")
             
@@ -161,8 +140,8 @@ class SIEMConnector:
                     print(f"📊 Searching index pattern: {index_pattern}")
                     response = self.es_client.search(
                         index=index_pattern,
-                        **dsl_query,
-                        timeout="30s"
+                        body=dsl_query,
+                        request_timeout=30
                     )
                     indices_searched.append(index_pattern)
                     
@@ -184,14 +163,14 @@ class SIEMConnector:
             
             if not response:
                 # If no indices found, fall back to mock data
-                print("📄 No Elasticsearch indices found, using mock data")
+                print("📄 No OpenSearch indices found, using mock data")
                 return self._query_mock_data(dsl_query, start_time)
             
             # Process the response
             hits = response["hits"]["hits"]
             total_hits = response["hits"]["total"]
             
-            # Handle different Elasticsearch versions
+            # Handle different OpenSearch versions
             if isinstance(total_hits, dict):
                 total_count = total_hits.get("value", 0)
             else:
@@ -201,7 +180,10 @@ class SIEMConnector:
             results = []
             for hit in hits:
                 source = hit["_source"]
-                log_result = self._convert_elasticsearch_hit_to_log_result(source)
+                # inject the _id so _convert_opensearch_hit_to_log_result can use it
+                if "_id" in hit:
+                    source = {**source, "_id": hit["_id"]}
+                log_result = self._convert_opensearch_hit_to_log_result(source)
                 results.append(log_result)
             
             # Create query stats
@@ -213,20 +195,37 @@ class SIEMConnector:
                 dsl_query=dsl_query
             )
             
-            print(f"📊 Elasticsearch query completed: {len(results)} results in {query_time_ms}ms")
+            print(f"📊 OpenSearch query completed: {len(results)} results in {query_time_ms}ms")
             return results, query_stats
             
         except ConnectionError as e:
-            print(f"❌ Elasticsearch connection error: {e}")
+            print(f"❌ OpenSearch connection error: {e}")
             return self._query_mock_data(dsl_query, start_time)
         except Exception as e:
-            print(f"❌ Error querying Elasticsearch: {e}")
+            print(f"❌ Error querying OpenSearch: {e}")
             return self._query_mock_data(dsl_query, start_time)
     
+    def query(self, dsl_query: Dict[str, Any]) -> Tuple[List[LogResult], QueryStats]:
+        """Public method to execute a DSL query against OpenSearch or mock data"""
+        start_time = time.time()
+        if self.es_client and self.connection_status == "connected" and not self.use_mock_data:
+            return self._query_opensearch(dsl_query, start_time)
+        else:
+            return self._query_mock_data(dsl_query, start_time)
+
     def _query_mock_data(self, dsl_query: Dict[str, Any], start_time: float) -> Tuple[List[LogResult], QueryStats]:
         """Query mock data using DSL-like filtering"""
         print("📄 Querying mock data...")
         
+        # Ensure DSL is a dictionary
+        if isinstance(dsl_query, str):
+            try:
+                dsl_query = json.loads(dsl_query)
+            except Exception:
+                dsl_query = {}
+        elif not isinstance(dsl_query, dict):
+            dsl_query = {}
+
         # Start with all mock data
         filtered_data = self.mock_data.copy()
         
@@ -358,8 +357,8 @@ class SIEMConnector:
         except (TypeError, ValueError):
             return False
     
-    def _convert_elasticsearch_hit_to_log_result(self, source: Dict[str, Any]) -> LogResult:
-        """Convert Elasticsearch hit to LogResult model"""
+    def _convert_opensearch_hit_to_log_result(self, source: Dict[str, Any]) -> LogResult:
+        """Convert OpenSearch hit to LogResult model"""
         # Extract common fields from Wazuh/Elastic SIEM format
         rule_info = source.get("rule", {})
         data_info = source.get("data", {})
@@ -441,18 +440,18 @@ class SIEMConnector:
             try:
                 cluster_health = self.es_client.cluster.health()
                 status_info.update({
-                    "elasticsearch_cluster_status": cluster_health.get("status", "unknown"),
-                    "elasticsearch_nodes": cluster_health.get("number_of_nodes", 0),
-                    "elasticsearch_indices": cluster_health.get("active_primary_shards", 0)
+                    "opensearch_cluster_status": cluster_health.get("status", "unknown"),
+                    "opensearch_nodes": cluster_health.get("number_of_nodes", 0),
+                    "opensearch_indices": cluster_health.get("active_primary_shards", 0)
                 })
             except Exception as e:
-                status_info["elasticsearch_error"] = str(e)
+                status_info["opensearch_error"] = str(e)
         
         return status_info
 
 
 # Global SIEM connector instance
-# Initialize with mock data by default (will attempt Elasticsearch connection)
+# Initialize with mock data by default (will attempt OpenSearch connection)
 siem_connector = SIEMConnector(use_mock_data=False)
 
 
@@ -461,7 +460,7 @@ def query_siem(dsl_query: Dict[str, Any]) -> Tuple[List[LogResult], QueryStats]:
     Main entry point for SIEM queries.
     This function provides the interface that the main application uses.
     """
-    return siem_connector.query_siem(dsl_query)
+    return siem_connector.query(dsl_query)
 
 
 def get_siem_status() -> Dict[str, Any]:
@@ -477,5 +476,5 @@ def force_mock_mode(enable: bool = True):
         siem_connector.connection_status = "mock_mode"
         print("🔄 Forced mock mode enabled")
     else:
-        siem_connector._connect_to_elasticsearch()
-        print("🔌 Attempting to reconnect to Elasticsearch")
+        siem_connector._connect_to_opensearch()
+        print("🔌 Attempting to reconnect to OpenSearch")

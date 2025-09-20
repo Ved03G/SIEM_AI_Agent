@@ -8,14 +8,14 @@ This system provides an NLP-powered interface that connects with ELK SIEMs (Elas
 
 - **Conversational Investigations**: Multi-turn natural language queries with context preservation
 - **Automated Report Generation**: Natural language report requests with charts and summaries
-- **Intelligent Query Translation**: Natural language to Elasticsearch DSL/KQL conversion
+- **Intelligent Query Translation**: Natural language to OpenSearch DSL/KQL conversion
 - **Context Management**: Maintains dialogue history for iterative queries
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   FastAPI       │    │   Elasticsearch │
+│   Frontend      │    │   FastAPI       │    │   OpenSearch    │
 │   Interface     │───▶│   Backend       │───▶│   SIEM Data     │
 │                 │    │                 │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
@@ -29,8 +29,8 @@ This system provides an NLP-powered interface that connects with ELK SIEMs (Elas
 
 ### Core Components
 
-1. **NLP Service** (`nlp_service.py`) - Converts natural language to Elasticsearch DSL
-2. **SIEM Connector** (`siem_connector.py`) - Handles Elasticsearch connections and mock data
+1. **NLP Service** (`nlp_service.py`) - Converts natural language to OpenSearch DSL
+2. **SIEM Connector** (`siem_connector.py`) - Handles OpenSearch connections and mock data
 3. **Context Manager** (`context_manager.py`) - Manages conversation state and multi-turn queries
 4. **API Layer** (`main.py`) - FastAPI application with REST endpoints
 5. **Data Models** (`models.py`) - Pydantic models for API contracts
@@ -40,7 +40,7 @@ This system provides an NLP-powered interface that connects with ELK SIEMs (Elas
 ### Prerequisites
 
 - Python 3.8 or higher
-- Optional: Elasticsearch/Wazuh instance (falls back to mock data)
+- Optional: OpenSearch/Wazuh instance (falls back to mock data)
 
 ### Installation
 
