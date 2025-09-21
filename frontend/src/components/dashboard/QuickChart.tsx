@@ -84,6 +84,8 @@ const QuickChart: React.FC<QuickChartProps> = ({
           paddingAngle={5}
           dataKey={dataKey}
           nameKey={nameKey}
+          label={({ name, percentage }) => `${name}: ${percentage}%`}
+          labelLine={false}
         >
           {data.map((_, index) => (
             <Cell 
@@ -99,6 +101,10 @@ const QuickChart: React.FC<QuickChartProps> = ({
             borderRadius: '8px',
             color: '#ffffff',
           }}
+          formatter={(value, name) => [
+            `${value} events (${data.find(d => d[nameKey] === name)?.percentage || 0}%)`,
+            name
+          ]}
         />
       </PieChart>
     </ResponsiveContainer>

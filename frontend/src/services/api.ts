@@ -57,10 +57,19 @@ class ApiService {
     );
   }
 
+  // Authentication methods
+  setAuthToken(token: string): void {
+    this.api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+
+  clearAuthToken(): void {
+    delete this.api.defaults.headers.common['Authorization'];
+  }
+
   // Authentication
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
-      const response: AxiosResponse<LoginResponse> = await this.api.post('/auth/login', credentials);
+      const response: AxiosResponse<LoginResponse> = await this.api.post('/api/login', credentials);
 
       // Store token and user data
       localStorage.setItem('auth_token', response.data.access_token);
@@ -75,7 +84,7 @@ class ApiService {
 
   async logout(): Promise<void> {
     try {
-      await this.api.post('/auth/logout');
+      await this.api.post('/api/logout');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -404,6 +413,19 @@ class ApiService {
         max_results_per_page: 100,
       },
     };
+  }
+
+  // Export functionality
+  async exportToPDF(exportData: any): Promise<any> {
+    try {
+      const response = await this.api.post('/api/export/pdf', exportData, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      throw error;
+    }
   }
 
   // Utility methods

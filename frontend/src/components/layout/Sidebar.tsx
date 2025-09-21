@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Search,
   BarChart3,
-  Activity,
   Settings,
   Shield,
 } from 'lucide-react';
@@ -33,11 +32,6 @@ const sidebarItems: SidebarItem[] = [
     icon: BarChart3,
     label: 'Reports',
     href: '/reports',
-  },
-  {
-    icon: Activity,
-    label: 'Health',
-    href: '/health',
   },
   {
     icon: Settings,

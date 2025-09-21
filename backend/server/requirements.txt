@@ -3,6 +3,10 @@ fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
 
+# Authentication
+PyJWT>=2.8.0
+bcrypt>=4.1.0
+
 # Data validation and models
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
@@ -16,6 +20,11 @@ python-dotenv>=1.0.0
 # Gemini AI Integration
 langchain-google-genai>=1.0.0
 langchain-core>=0.1.0
+
+# PDF generation and reporting
+reportlab>=4.0.0
+matplotlib>=3.7.0
+plotly>=5.17.0
 
 # Visualization for reports (hackathon focus)
 matplotlib>=3.7.0

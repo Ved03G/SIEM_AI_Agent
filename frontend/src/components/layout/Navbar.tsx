@@ -3,20 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Shield,
   LogOut,
   Bell,
   User,
 } from 'lucide-react';
-import { AuthUtils } from '../../services/utils';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
-  const currentUser = AuthUtils.getCurrentUser();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
-    AuthUtils.logout();
+    logout();
     navigate('/login');
   };
 
@@ -62,11 +62,11 @@ const Navbar: React.FC = () => {
             {/* User Profile */}
             <div className="flex items-center space-x-2">
               <div className="hidden md:block text-right">
-                <p className="text-sm font-medium text-foreground">
-                  {currentUser?.username || 'Security Analyst'}
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {user?.username || 'Security Analyst'}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {currentUser?.role || 'Senior Analyst'}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {user?.role || 'Senior Analyst'}
                 </p>
               </div>
               <Button variant="ghost" size="sm">

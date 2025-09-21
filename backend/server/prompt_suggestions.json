@@ -1,0 +1,173 @@
+{
+  "categories": [
+    {
+      "id": "security_alerts",
+      "name": "Security Alerts",
+      "description": "Queries related to security incidents and alerts",
+      "prompts": [
+        {
+          "id": "high_severity_alerts",
+          "text": "Show me all high severity alerts from the last 24 hours",
+          "category": "security_alerts",
+          "tags": ["alerts", "severity", "recent"],
+          "expected_results": 45,
+          "visualization_type": "bar_chart"
+        },
+        {
+          "id": "critical_threats",
+          "text": "Find all critical threats detected this week",
+          "category": "security_alerts", 
+          "tags": ["threats", "critical", "weekly"],
+          "expected_results": 23,
+          "visualization_type": "pie_chart"
+        },
+        {
+          "id": "failed_logins",
+          "text": "Show failed login attempts in the last hour",
+          "category": "security_alerts",
+          "tags": ["authentication", "failed", "recent"],
+          "expected_results": 89,
+          "visualization_type": "line_chart"
+        }
+      ]
+    },
+    {
+      "id": "network_analysis",
+      "name": "Network Analysis",
+      "description": "Network traffic and connection analysis queries",
+      "prompts": [
+        {
+          "id": "suspicious_ips",
+          "text": "List all suspicious IP addresses from external networks",
+          "category": "network_analysis",
+          "tags": ["network", "suspicious", "external"],
+          "expected_results": 34,
+          "visualization_type": "table"
+        },
+        {
+          "id": "port_scans",
+          "text": "Detect port scanning activities in the last 6 hours",
+          "category": "network_analysis",
+          "tags": ["port_scan", "network", "detection"],
+          "expected_results": 12,
+          "visualization_type": "timeline"
+        },
+        {
+          "id": "data_exfiltration",
+          "text": "Find potential data exfiltration attempts",
+          "category": "network_analysis",
+          "tags": ["data_exfiltration", "network", "suspicious"],
+          "expected_results": 7,
+          "visualization_type": "graph"
+        }
+      ]
+    },
+    {
+      "id": "malware_detection",
+      "name": "Malware Detection", 
+      "description": "Malware and threat detection queries",
+      "prompts": [
+        {
+          "id": "malware_signatures",
+          "text": "Show all malware signature matches today",
+          "category": "malware_detection",
+          "tags": ["malware", "signatures", "detection"],
+          "expected_results": 16,
+          "visualization_type": "pie_chart"
+        },
+        {
+          "id": "ransomware_indicators",
+          "text": "Search for ransomware indicators of compromise",
+          "category": "malware_detection",
+          "tags": ["ransomware", "ioc", "compromise"],
+          "expected_results": 3,
+          "visualization_type": "alert_list"
+        },
+        {
+          "id": "virus_quarantine",
+          "text": "List files quarantined by antivirus systems",
+          "category": "malware_detection",
+          "tags": ["virus", "quarantine", "files"],
+          "expected_results": 28,
+          "visualization_type": "table"
+        }
+      ]
+    },
+    {
+      "id": "compliance_audit",
+      "name": "Compliance & Audit",
+      "description": "Compliance monitoring and audit trail queries",
+      "prompts": [
+        {
+          "id": "admin_activities",
+          "text": "Show all administrator activities this month",
+          "category": "compliance_audit",
+          "tags": ["admin", "activities", "audit"],
+          "expected_results": 156,
+          "visualization_type": "timeline"
+        },
+        {
+          "id": "policy_violations",
+          "text": "Find security policy violations in the past week",
+          "category": "compliance_audit", 
+          "tags": ["policy", "violations", "compliance"],
+          "expected_results": 21,
+          "visualization_type": "bar_chart"
+        },
+        {
+          "id": "privilege_escalation",
+          "text": "Detect privilege escalation attempts",
+          "category": "compliance_audit",
+          "tags": ["privilege", "escalation", "security"],
+          "expected_results": 8,
+          "visualization_type": "alert_list"
+        }
+      ]
+    },
+    {
+      "id": "system_monitoring",
+      "name": "System Monitoring",
+      "description": "System performance and health monitoring queries",
+      "prompts": [
+        {
+          "id": "resource_usage",
+          "text": "Show systems with high resource usage",
+          "category": "system_monitoring",
+          "tags": ["resources", "performance", "monitoring"],
+          "expected_results": 42,
+          "visualization_type": "bar_chart"
+        },
+        {
+          "id": "service_failures",
+          "text": "List all service failures in the last 24 hours",
+          "category": "system_monitoring",
+          "tags": ["services", "failures", "system"],
+          "expected_results": 14,
+          "visualization_type": "line_chart"
+        },
+        {
+          "id": "disk_space_alerts",
+          "text": "Find servers with low disk space warnings",
+          "category": "system_monitoring",
+          "tags": ["disk_space", "warnings", "servers"],
+          "expected_results": 6,
+          "visualization_type": "pie_chart"
+        }
+      ]
+    }
+  ],
+  "trending_prompts": [
+    "Show me all high severity alerts from the last 24 hours",
+    "Find all critical threats detected this week", 
+    "List all suspicious IP addresses from external networks",
+    "Show all malware signature matches today",
+    "Detect privilege escalation attempts"
+  ],
+  "recent_prompts": [
+    "Show failed login attempts in the last hour",
+    "Detect port scanning activities in the last 6 hours",
+    "Find servers with low disk space warnings",
+    "List all service failures in the last 24 hours",
+    "Search for ransomware indicators of compromise"
+  ]
+}

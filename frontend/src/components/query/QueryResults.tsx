@@ -18,10 +18,10 @@ import {
   AlertTriangle,
   Eye,
   Download,
-  Filter,
 } from 'lucide-react';
 import { LogEvent } from '../../types';
 import { DateUtils, SeverityColors } from '../../services/utils';
+import { apiService } from '../../services/api';
 
 interface QueryResultsProps {
   events: LogEvent[];
@@ -40,6 +40,131 @@ const QueryResults: React.FC<QueryResultsProps> = ({
 }) => {
   const getSeverityColor = (severity: string) => {
     return SeverityColors[severity as keyof typeof SeverityColors] || SeverityColors.low;
+  };
+
+  const handleExport = async () => {
+    try {
+      // Analyze the events data to create meaningful visualizations
+      const analyzedData = analyzeEventsData(events);
+      
+      const exportData = {
+        title: 'SIEM Query Results Export',
+        type: 'query_results',
+        include_dashboard: false,
+        sections: ['query_results', 'analysis_charts', 'data_tables'],
+        data: {
+          events,
+          queryTime,
+          totalCount,
+          aiInsights,
+          exportDate: new Date().toISOString(),
+          analysis: analyzedData
+        }
+      };
+
+      const response = await apiService.exportToPDF(exportData);
+      
+      // Create blob and download
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `siem-query-results-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export failed:', error);
+      // Fallback: export as JSON with analysis
+      const analyzedData = analyzeEventsData(events);
+      const exportData = {
+        events,
+        queryTime,
+        totalCount,
+        aiInsights,
+        analysis: analyzedData,
+        exportDate: new Date().toISOString()
+      };
+      const jsonData = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `siem-query-results-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+  };
+
+  // Analyze events data to create visualizations
+  const analyzeEventsData = (events: LogEvent[]) => {
+    const analysis = {
+      severityDistribution: {} as Record<string, number>,
+      sourceIpCounts: {} as Record<string, number>,
+      ruleDistribution: {} as Record<string, number>,
+      timelineData: [] as Array<{hour: string, count: number}>,
+      topAlerts: [] as Array<{rule: string, count: number}>,
+      geoDistribution: {} as Record<string, number>
+    };
+
+    // Analyze severity distribution
+    events.forEach(event => {
+      const severity = event.severity || 'unknown';
+      analysis.severityDistribution[severity] = (analysis.severityDistribution[severity] || 0) + 1;
+      
+      // Analyze source IPs
+      const sourceIp = event.source_ip || 'unknown';
+      analysis.sourceIpCounts[sourceIp] = (analysis.sourceIpCounts[sourceIp] || 0) + 1;
+      
+      // Analyze rules
+      const ruleName = event.event_type || event.description || 'unknown';
+      analysis.ruleDistribution[ruleName] = (analysis.ruleDistribution[ruleName] || 0) + 1;
+      
+      // Analyze geography (simplified)
+      let country = 'unknown';
+      if (sourceIp.startsWith('192.168.') || sourceIp.startsWith('10.') || sourceIp.startsWith('172.16.')) {
+        country = 'Internal Network';
+      } else if (sourceIp.startsWith('203.0.113.')) {
+        country = 'Russia';
+      } else if (sourceIp.startsWith('198.51.100.')) {
+        country = 'United Kingdom';
+      } else if (sourceIp.startsWith('169.254.')) {
+        country = 'China';
+      }
+      analysis.geoDistribution[country] = (analysis.geoDistribution[country] || 0) + 1;
+    });
+
+    // Create timeline data (24-hour buckets)
+    const hourCounts: Record<string, number> = {};
+    events.forEach(event => {
+      try {
+        const timestamp = event.timestamp || new Date().toISOString();
+        const hour = new Date(timestamp).getHours();
+        const hourKey = `${hour.toString().padStart(2, '0')}:00`;
+        hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
+      } catch (e) {
+        // Skip invalid timestamps
+      }
+    });
+
+    for (let i = 0; i < 24; i++) {
+      const hourKey = `${i.toString().padStart(2, '0')}:00`;
+      analysis.timelineData.push({
+        hour: hourKey,
+        count: hourCounts[hourKey] || 0
+      });
+    }
+
+    // Get top alerts
+    analysis.topAlerts = Object.entries(analysis.ruleDistribution)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([rule, count]) => ({ rule, count }));
+
+    return analysis;
   };
 
   if (loading) {
@@ -103,11 +228,7 @@ const QueryResults: React.FC<QueryResultsProps> = ({
               </div>
             </div>
             <div className="flex space-x-2">
-              <Button variant="outline" size="sm">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={handleExport}>
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>

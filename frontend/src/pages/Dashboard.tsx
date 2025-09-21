@@ -3,19 +3,15 @@ import { motion } from 'framer-motion';
 import { 
   Shield, 
   AlertTriangle, 
-  Users, 
   Lock,
   Activity,
-  TrendingUp,
-  Clock,
-  Globe
+  TrendingUp
 } from 'lucide-react';
 import MetricCard from '../components/dashboard/MetricCard';
-import TopIPsCard from '../components/dashboard/TopIPsCard';
 import QuickChart from '../components/dashboard/QuickChart';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { DashboardMetrics } from '../types';
 import { apiService } from '../services/api';
 import { DateUtils, FormatUtils } from '../services/utils';
@@ -203,94 +199,6 @@ const Dashboard: React.FC = () => {
           nameKey="severity"
         />
       </div>
-
-      {/* Bottom Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Source IPs */}
-        <TopIPsCard ips={metrics.top_source_ips} />
-
-        {/* Recent Threat Timeline */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <Card className="metric-card hover:cyber-glow transition-all duration-300">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-neon-blue" />
-                <span>Recent Threat Activity</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {metrics.threat_timeline.map((event, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center justify-between p-3 rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="text-sm font-medium text-foreground">
-                        {event.time}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {event.event_type}
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge
-                        variant={event.severity === 'critical' ? 'destructive' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {event.count} events
-                      </Badge>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Quick Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-      >
-        <Card className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-blue-500/30">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Quick Actions
-                </h3>
-                <p className="text-muted-foreground">
-                  Jump to common security analysis tasks
-                </p>
-              </div>
-              <div className="flex space-x-3">
-                <Button variant="outline" size="sm">
-                  <Globe className="h-4 w-4 mr-2" />
-                  Investigate IPs
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Users className="h-4 w-4 mr-2" />
-                  User Activity
-                </Button>
-                <Button size="sm" className="bg-neon-blue hover:bg-neon-blue/90">
-                  <Shield className="h-4 w-4 mr-2" />
-                  Run Analysis
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
     </div>
   );
 };
