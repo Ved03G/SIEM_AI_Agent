@@ -188,6 +188,27 @@ export interface ChartData {
   colors?: string[];
 }
 
+// NL Report (AI-generated) Response Types
+export interface NLChartSpec {
+  chart_type: 'bar' | 'line' | 'pie' | 'area' | 'scatter';
+  title: string;
+  data: any[]; // [{label, value}] for bar/pie, [{x, y}] for line/area
+  x_axis_label?: string;
+  y_axis_label?: string;
+}
+
+export interface NLReportResponse {
+  report_title: string;
+  executive_summary: string;
+  detailed_analysis: string;
+  charts: NLChartSpec[];
+  key_findings: string[];
+  recommendations: string[];
+  data_sources: string[];
+  generation_timestamp: string;
+  session_id: string;
+}
+
 // Settings Types
 export interface UserSettings {
   user_profile: {

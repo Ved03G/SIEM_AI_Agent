@@ -133,11 +133,17 @@ AI:
   }}
 }}
 
+Conversation context (use these to refine the current question; consider them as prior constraints and preferences unless explicitly overridden by the user):
+{conversation_context}
+
+Active filters from the current session context (apply these unless the user contradicts them):
+{active_filter_context}
+
 Human: {user_question}
 AI:
 """
 
-def generate_dsl_query(question: str) -> dict:
+def generate_dsl_query(question: str, conversation_context: str = "", active_filter_context: str = "") -> dict:
   """
   Takes a user's natural language question and returns a valid OpenSearch DSL query as a dictionary.
   Returns an empty dictionary if the generation fails or the output is not valid JSON.
@@ -173,18 +179,29 @@ def generate_dsl_query(question: str) -> dict:
     )
 
     # Create the prompt from the template
-    prompt = PromptTemplate(template=MASTER_PROMPT_TEMPLATE, input_variables=["user_question"]) 
+    prompt = PromptTemplate(
+      template=MASTER_PROMPT_TEMPLATE,
+      input_variables=["user_question", "conversation_context", "active_filter_context"],
+    ) 
 
     # Log question and the filled prompt for transparency
     print("[NLP] Received question:", question)
-    filled_prompt = prompt.format(user_question=question)
+    filled_prompt = prompt.format(
+      user_question=question,
+      conversation_context=conversation_context or "(none)",
+      active_filter_context=active_filter_context or "(none)",
+    )
     print("[NLP] Filled prompt (truncated to 2,000 chars):\n" + filled_prompt[:2000])
 
     # Create a simple chain
     chain = prompt | llm
 
     # Invoke the chain with the user's question
-    response = chain.invoke({"user_question": question})
+    response = chain.invoke({
+      "user_question": question,
+      "conversation_context": conversation_context or "",
+      "active_filter_context": active_filter_context or "",
+    })
 
     # The response.content should be a JSON string; parse with a safe fallback
     raw = (getattr(response, "content", "") or "").strip()

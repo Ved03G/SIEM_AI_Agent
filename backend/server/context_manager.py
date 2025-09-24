@@ -239,29 +239,30 @@ class ContextManager:
     def _update_active_filters(self, context: ConversationContext, dsl_query: Dict[str, Any]):
         """Update active filters based on the current DSL query"""
         # Extract filters from the DSL query
-        query_bool = dsl_query.get("query", {}).get("bool", {})
-        
-        # Process filter conditions
-        filters = query_bool.get("filter", [])
-        for filter_condition in filters:
-            if "range" in filter_condition:
-                field, range_config = next(iter(filter_condition["range"].items()))
-                if field == "timestamp":
-                    context.active_filters["time_range"] = range_config
-                elif field == "rule.level":
-                    context.active_filters["severity_filter"] = range_config
-            
-            elif "term" in filter_condition:
-                field, value = next(iter(filter_condition["term"].items()))
-                context.active_filters[f"filter_{field}"] = value
-        
-        # Process must conditions for persistent filters
-        must_conditions = query_bool.get("must", [])
-        for condition in must_conditions:
-            if "terms" in condition:
-                field, values = next(iter(condition["terms"].items()))
-                if field == "rule.groups":
-                    context.active_filters["rule_groups"] = values
+        query_obj = dsl_query.get("query", {})
+        query_bool = query_obj.get("bool", {}) if isinstance(query_obj, dict) else {}
+
+        def process_conditions(conditions: List[Dict[str, Any]]):
+            for cond in conditions or []:
+                if not isinstance(cond, dict):
+                    continue
+                if "range" in cond and isinstance(cond["range"], dict):
+                    field, range_config = next(iter(cond["range"].items()))
+                    if field in ("@timestamp", "timestamp"):
+                        context.active_filters["time_range"] = range_config
+                    elif field == "rule.level":
+                        context.active_filters["severity_filter"] = range_config
+                elif "term" in cond and isinstance(cond["term"], dict):
+                    field, value = next(iter(cond["term"].items()))
+                    context.active_filters[f"filter_{field}"] = value
+                elif "terms" in cond and isinstance(cond["terms"], dict):
+                    field, values = next(iter(cond["terms"].items()))
+                    if field == "rule.groups":
+                        context.active_filters["rule_groups"] = values
+
+        # Process both filter and must clauses
+        process_conditions(query_bool.get("filter", []))
+        process_conditions(query_bool.get("must", []))
     
     def _calculate_relevance(self, query1: str, query2: str) -> float:
         """Calculate relevance score between two queries (simple word overlap)"""

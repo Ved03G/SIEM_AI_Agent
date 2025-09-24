@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -10,9 +10,73 @@ import {
   Calendar,
   Filter,
   TrendingUp,
+  Send,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
+import { apiService } from '../services/api';
+import { NLReportResponse } from '../types';
 
 const Reports: React.FC = () => {
+  const [question, setQuestion] = useState<string>('Generate a summary of malware detections in the past month with charts');
+  const [loading, setLoading] = useState(false);
+  const [report, setReport] = useState<NLReportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const generateReport = async () => {
+    if (!question.trim() || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const resp = await apiService.generateReportNL(question, true);
+      setReport(resp);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to generate report');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderChart = (chart: any, idx: number) => {
+    const type = (chart.chart_type || '').toLowerCase();
+    const data = chart.data || [];
+    if (type === 'bar') {
+      return (
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <XAxis dataKey="label" tick={{ fill: '#9ca3af', fontSize: 12 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 8, color: '#fff' }} />
+            <Bar dataKey="value" fill="#00d4ff" />
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+    if (type === 'line') {
+      return (
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <XAxis dataKey="x" tick={{ fill: '#9ca3af', fontSize: 12 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 8, color: '#fff' }} />
+            <Line type="monotone" dataKey="y" stroke="#00d4ff" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      );
+    }
+    return null;
+  };
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -45,6 +109,72 @@ const Reports: React.FC = () => {
           </Button>
         </div>
       </motion.div>
+
+      {/* Natural Language Report Generator */}
+      <Card className="metric-card">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>AI-Powered Report Generator</span>
+            <Badge variant="secondary" className="bg-neon-blue/20 text-neon-blue">Beta</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row md:items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-sm text-muted-foreground mb-1">Describe the report you want</label>
+              <input
+                className="w-full border border-border/30 rounded-lg px-4 py-2 bg-background/50 focus:border-neon-blue/50 focus:ring-neon-blue/20 focus:outline-none"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="e.g., Generate a summary of malware detections in the past month with charts"
+              />
+            </div>
+            <Button onClick={generateReport} disabled={loading || !question.trim()} className="bg-neon-blue hover:bg-neon-blue/90 text-black">
+              {loading ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black" /> : <Send className="h-4 w-4 mr-2" />}
+              Generate
+            </Button>
+          </div>
+
+          {error && (
+            <div className="mt-3 text-sm text-red-400">{error}</div>
+          )}
+
+          {report && (
+            <div className="mt-6 space-y-6">
+              <div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">Executive Summary</h3>
+                <p className="text-muted-foreground whitespace-pre-wrap">{report.executive_summary}</p>
+              </div>
+
+              {Array.isArray(report.charts) && report.charts.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {report.charts.map((chart: any, idx: number) => (
+                    <Card key={idx} className="metric-card">
+                      <CardHeader>
+                        <CardTitle className="text-foreground text-base">{chart.title}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {renderChart(chart, idx) || <div className="text-sm text-muted-foreground">Unsupported chart type</div>}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {Array.isArray(report.key_findings) && report.key_findings.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2">Key Findings</h3>
+                  <ul className="list-disc pl-5 text-muted-foreground">
+                    {report.key_findings.map((k: string, i: number) => (
+                      <li key={i}>{k}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Report Templates */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -147,7 +277,7 @@ const Reports: React.FC = () => {
               Advanced Reporting Coming Soon
             </h3>
             <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Interactive charts, customizable dashboards, scheduled reports, and AI-powered insights 
+              Interactive charts, customizable dashboards, scheduled reports, and AI-powered insights
               are being developed to give you the most comprehensive security reporting experience.
             </p>
             <div className="flex justify-center space-x-4">

@@ -91,6 +91,14 @@ class ReportRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Session ID for conversation context")
 
 
+class NLReportRequest(BaseModel):
+    """Natural language request for generating automated reports"""
+    question: str = Field(..., description="Natural language instruction for the report (e.g., 'Generate a summary of malware detections in the past month with charts')")
+    include_charts: bool = Field(default=True, description="Whether to include visual charts in the report")
+    max_results: int = Field(default=1000, description="Maximum number of events to consider for aggregation")
+    session_id: Optional[str] = Field(None, description="Session ID for conversation context")
+
+
 class ChartData(BaseModel):
     """Data structure for charts and visualizations"""
     chart_type: str = Field(..., description="Type of chart (bar, line, pie, etc.)")

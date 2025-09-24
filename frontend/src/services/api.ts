@@ -8,6 +8,7 @@ import {
   HealthStatus,
   ReportRequest,
   ReportResponse,
+  NLReportResponse,
   SuggestionResponse,
   UserSettings,
   PaginatedResponse,
@@ -100,7 +101,9 @@ class ApiService {
   async queryLogs(queryRequest: QueryRequest): Promise<QueryResponse> {
     try {
       // Backend endpoint is prefixed with /api
-      const response = await this.api.post('/api/query', queryRequest);
+      // Ensure a session_id is present for contextual queries
+      const sessionId = queryRequest.session_id || this.getOrCreateSessionId();
+      const response = await this.api.post('/api/query', { ...queryRequest, session_id: sessionId });
       const backendResponse = response.data;
 
       // Transform backend LogResult to frontend LogEvent format
@@ -142,7 +145,7 @@ class ApiService {
         strategy: backendResponse.strategy,
         repro_curl: backendResponse.repro_curl,
         // Legacy/optional fields for compatibility
-        session_id: backendResponse.session_id,
+        session_id: backendResponse.session_id || sessionId,
         suggestions: backendResponse.suggestions,
         has_more_results: backendResponse.has_more_results,
       };
@@ -150,6 +153,21 @@ class ApiService {
       console.error('Query failed:', error);
       throw new Error('Failed to execute query');
     }
+  }
+
+  async clearConversation(sessionId?: string): Promise<{ session_id: string; cleared: boolean }> {
+    const sid = sessionId || this.getOrCreateSessionId();
+    const response = await this.api.post('/api/context/clear', { session_id: sid, question: '' });
+    return response.data;
+  }
+
+  private getOrCreateSessionId(): string {
+    let sid = localStorage.getItem('siem_session_id');
+    if (!sid) {
+      sid = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem('siem_session_id', sid);
+    }
+    return sid;
   }
 
   async getSuggestions(): Promise<SuggestionResponse> {
@@ -188,6 +206,16 @@ class ApiService {
   }
 
   // Reports
+  async generateReportNL(question: string, includeCharts = true): Promise<NLReportResponse> {
+    const sessionId = this.getOrCreateSessionId();
+    const response = await this.api.post('/api/report', {
+      question,
+      include_charts: includeCharts,
+      max_results: 1000,
+      session_id: sessionId,
+    });
+    return response.data as NLReportResponse;
+  }
   async generateReport(reportRequest: ReportRequest): Promise<ReportResponse> {
     try {
       const response = await this.api.post('/reports/generate', reportRequest);
