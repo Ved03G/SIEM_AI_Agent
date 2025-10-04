@@ -360,52 +360,31 @@ class ApiService {
     };
   }
 
-  private getMockHealthStatus(): HealthStatus {
-    return {
-      status: 'healthy',
-      uptime: '15d 6h 23m',
-      version: '1.0.0',
-      last_updated: new Date().toISOString(),
-      services: [
-        {
-          name: 'Elasticsearch',
-          status: 'online',
-          response_time_ms: 45,
-          last_check: new Date().toISOString(),
-          endpoint: 'http://localhost:9200',
-        },
-        {
-          name: 'AI Query Engine',
-          status: 'online',
-          response_time_ms: 120,
-          last_check: new Date().toISOString(),
-        },
-        {
-          name: 'Log Ingestion',
-          status: 'online',
-          response_time_ms: 23,
-          last_check: new Date().toISOString(),
-        },
-        {
-          name: 'Alert System',
-          status: 'online',
-          response_time_ms: 67,
-          last_check: new Date().toISOString(),
-        },
-      ],
-      performance: {
-        cpu_usage: 34.5,
-        memory_usage: 67.2,
-        disk_usage: 42.8,
-        network_io: {
-          bytes_sent: 1024768,
-          bytes_received: 2048576,
-        },
-        active_connections: 47,
-        queries_per_minute: 156,
-      },
-    };
-  }
+private getMockHealthStatus(): HealthStatus {
+  const now = new Date().toISOString();
+  const baseService = { status: 'online', last_check: now };
+
+  return {
+    status: 'healthy',
+    uptime: '15d 6h 23m',
+    version: '1.0.0',
+    last_updated: now,
+    services: [
+      { name: 'Elasticsearch', response_time_ms: 45, endpoint: 'http://localhost:9200', ...baseService },
+      { name: 'AI Query Engine', response_time_ms: 120, ...baseService },
+      { name: 'Log Ingestion', response_time_ms: 23, ...baseService },
+      { name: 'Alert System', response_time_ms: 67, ...baseService },
+    ],
+    performance: {
+      cpu_usage: 34.5,
+      memory_usage: 67.2,
+      disk_usage: 42.8,
+      network_io: { bytes_sent: 1024768, bytes_received: 2048576 },
+      active_connections: 47,
+      queries_per_minute: 156,
+    },
+  };
+}
 
   private getMockUserSettings(): UserSettings {
     return {
@@ -435,10 +414,10 @@ class ApiService {
   }
 
   // Utility methods
-  getCurrentUser() {
-    const userData = localStorage.getItem('user_data');
-    return userData ? JSON.parse(userData) : null;
-  }
+getCurrentUser() {
+  const userData = localStorage.getItem('user_data');
+  return userData ? JSON.parse(userData) : null;
+}
 
   isAuthenticated(): boolean {
     return !!localStorage.getItem('auth_token');
